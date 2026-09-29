@@ -1,0 +1,8 @@
+{
+  "name": "ccal-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "bunx playwright test --config playwright.config.ts && bun encode.ts"
+  }
+}

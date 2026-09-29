@@ -6,3 +6,6 @@ dist/
 test-results/
 playwright-report/
 .alchemy/
+
+# Generated product video (regenerate with `bun run capture` in video/)
+video/out/
