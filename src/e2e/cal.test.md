@@ -53,3 +53,9 @@
 # Success page
 - Assert url contains "success"
 - Assert the page shows the selected date and time, and the entered name, email and description
+
+# Rate limiting
+- Every test acts as its own client, so tests never use up each other's request budget
+- Assert a client can make 10 requests to the server's API within 60 seconds, whatever the route or outcome
+- Assert the 11th request within those 60 seconds is rejected with "Too Many Requests" (429) and says when to retry
+- Assert another client is not affected

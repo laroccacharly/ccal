@@ -23,8 +23,10 @@
 //
 // Clicking "OK" POSTs the booking to /api/booking-requests on the same origin as the UI.
 // GET /api/booking-requests?email= reads back what was stored; it requires "Authorization: Bearer $CCAL_API_KEY".
+// The API allows each client 10 requests every 60 seconds, keyed on CF-Connecting-IP. Locally the Worker trusts that header,
+// so each test sends its own to act as a separate client.
 
-import { test, expect, type Page, type Route } from "@playwright/test";
+import { test, expect, type Page, type Route, type TestInfo } from "@playwright/test";
 
 import type { BookingRequest, Contact } from "@ccal/shared";
 
@@ -150,6 +152,19 @@ const confirmDialog = (page: Page) => page.getByRole("alertdialog");
 async function slotTimes(page: Page) {
   return (await timeSlots(page).allTextContents()).map(toMinutes);
 }
+
+const RATE_LIMIT = 10;
+
+// A client id no other test or earlier run has used.
+const newClient = (testInfo: TestInfo) => `e2e-${testInfo.testId}-${crypto.randomUUID()}`;
+
+test.use({
+  // Playwright requires the fixtures argument to be destructured, even when unused.
+  // oxlint-disable-next-line no-empty-pattern
+  extraHTTPHeaders: async ({}, use, testInfo) => {
+    await use({ "CF-Connecting-IP": newClient(testInfo) });
+  },
+});
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -524,5 +539,32 @@ test.describe("Success page", () => {
     const { date, time } = await goToSuccess(page);
     const success = page.getByTestId("success-page");
     for (const text of [date, time, contact.name, contact.email, contact.description]) await expect(success).toContainText(text);
+  });
+});
+
+test.describe("Rate limiting", () => {
+  test("a client gets 10 API requests every 60 seconds, then 429 Too Many Requests", async ({ request }) => {
+    // Any route and outcome counts: unauthorized listings, bookings and unknown routes alike.
+    const calls = [
+      () => request.get("/api/booking-requests"),
+      () => request.post("/api/booking-requests", { data: { ...contact, startsAt: "2026-10-01T17:30:00.000Z", timeZone: MONTREAL } }),
+      () => request.get("/api/nope"),
+    ];
+    for (let i = 0; i < RATE_LIMIT; i++) {
+      const response = await calls[i % calls.length]();
+      expect(response.status(), `request ${i + 1}`).not.toBe(429);
+    }
+
+    const limited = await request.get("/api/booking-requests", { headers: { Authorization: `Bearer ${API_KEY}` } });
+    expect(limited.status()).toBe(429);
+    expect(limited.headers()["retry-after"]).toBe("60");
+  });
+
+  test("another client is not affected", async ({ request }, testInfo) => {
+    for (let i = 0; i <= RATE_LIMIT; i++) await request.get("/api/booking-requests");
+    const other = await request.get("/api/booking-requests", {
+      headers: { "CF-Connecting-IP": newClient(testInfo), Authorization: `Bearer ${API_KEY}` },
+    });
+    expect(other.status()).toBe(200);
   });
 });

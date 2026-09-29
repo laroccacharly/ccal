@@ -3,6 +3,7 @@ import * as SQL from "alchemy/SQL/D1"
 import { Config, Effect, Option } from "effect"
 import { HttpRouter, HttpServerResponse } from "effect/unstable/http"
 
+import { RATE_LIMIT, RateLimiter, rateLimit } from "./rate-limit"
 import { routes } from "./routes"
 
 export const Database = Cloudflare.D1.Database("Database", {
@@ -40,11 +41,21 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
   }),
   Effect.gen(function* worker() {
     const d1 = yield* Cloudflare.D1.QueryDatabase(yield* Database)
+    const limiter = yield* RateLimiter
     const handleFetch = yield* HttpRouter.toHttpEffect(routes)
     return {
-      fetch: handleFetch.pipe(
+      fetch: rateLimit(limiter).pipe(
+        Effect.andThen(handleFetch),
         Effect.provide(SQL.D1Layer(d1)),
         Effect.catchTags({
+          RateLimited: () =>
+            Effect.succeed(
+              HttpServerResponse.jsonUnsafe(
+                { error: "rate_limited" },
+                { status: 429, headers: { "Retry-After": String(RATE_LIMIT.period) } },
+              ),
+            ),
+          RateLimitUnavailable: () => jsonError("rate_limit_unavailable", 503),
           Unauthorized: () => jsonError("unauthorized", 401),
           SchemaError: () => jsonError("invalid_request", 400),
           BookingNotStored: () => jsonError("booking_store_failed", 500),
@@ -66,6 +77,6 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
         Effect.orDie,
       ),
     }
-  }).pipe(Effect.provide(Cloudflare.D1.QueryDatabaseBinding)),
+  }).pipe(Effect.provide([Cloudflare.D1.QueryDatabaseBinding, Cloudflare.Workers.RateLimitBinding])),
 ) {}
 
