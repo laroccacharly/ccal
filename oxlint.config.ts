@@ -10,6 +10,8 @@ export default defineConfig({
     "react/react-in-jsx-scope": "off",
     "import/no-unassigned-import": ["warn", { allow: ["**/*.css"] }],
     "unicorn/consistent-function-scoping": "off",
+    // Effect errors and unions are discriminated by `_tag`.
+    "no-underscore-dangle": ["warn", { allow: ["_tag"] }],
   },
   env: {
     builtin: true,

@@ -15,5 +15,7 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
+    // The booking API is the Worker; run it with `bun run dev:worker`.
+    proxy: { "/api": "http://localhost:1337" },
   },
 })

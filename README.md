@@ -25,3 +25,21 @@ The login token is stored in `~/.config/ccal/token.json`.
 - `--duration` — minutes, default 30
 
 Google sends the invite email itself (with the Meet link); the link is also printed to stdout.
+
+## Deploy
+
+One Cloudflare Worker (`src/worker`, written with Effect) serves the built UI (`src/ui/dist`) as static assets and the booking API under `/api/*`, backed by D1 (`migrations/`). It is deployed with Alchemy (`alchemy.run.ts`).
+
+```sh
+bun run plan        # preview infra changes
+bun run deploy      # builds the UI, then deploys
+bun run dev:worker  # run the Worker locally (http://localhost:1337) with a local D1; `bun dev` proxies /api to it
+```
+
+`bun test:e2e` builds the UI and runs the stack under `alchemy dev --stage e2e` on port 3100. Listing bookings (`GET /api/booking-requests[?email=]`) requires `Authorization: Bearer $CCAL_API_KEY`; set `CCAL_API_KEY` in `.env` before `dev:worker` or `deploy` (e.g. `openssl rand -hex 32`). Booking (`POST`) stays public for the UI. The e2e run uses its own key.
+
+The Worker's compatibility date must not be newer than what Alchemy's bundled workerd supports (it fails with a `ConfigError` otherwise).
+
+Cloudflare credentials come from env vars, not an Alchemy profile: set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (see `.env.example`). Alchemy state is kept locally in `.alchemy/`.
+
+Versions: alchemy `2.0.0-beta.79` requires effect `>=4.0.0-rc.115`, but effect `rc.118` moved `effect/unstable/cli` to `effect/cli` and breaks it. All effect packages are pinned to `4.0.0-rc.117` (see `overrides` in `package.json`).

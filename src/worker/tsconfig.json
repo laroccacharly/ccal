@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
     "target": "es2023",
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2023"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "types": ["bun"],
+    "types": ["bun", "@cloudflare/workers-types"],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["alchemy.run.ts", "src/shared", "src/cli.ts", "src/e2e", "playwright.config.ts", "oxlint.config.ts"]
+  "include": ["."]
 }

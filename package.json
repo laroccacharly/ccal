@@ -14,15 +14,29 @@
     "dev": "bun --filter ui dev",
     "build": "bun --filter ui build",
     "test:e2e": "playwright test",
-    "test-server": "bun src/test-server/server.ts",
-    "lint": "oxlint --deny-warnings"
+    "lint": "oxlint --deny-warnings",
+    "dev:worker": "alchemy dev",
+    "plan": "alchemy plan",
+    "deploy": "bun run build && alchemy deploy --yes"
   },
   "dependencies": {
-    "@ccal/shared": "workspace:*"
+    "@ccal/shared": "workspace:*",
+    "@effect/platform-bun": "4.0.0-rc.117",
+    "@effect/platform-node": "4.0.0-rc.117",
+    "@effect/sql-d1": "4.0.0-rc.117",
+    "alchemy": "2.0.0-beta.79",
+    "effect": "4.0.0-rc.117"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260929.1",
     "@playwright/test": "^1.63.0",
     "@types/bun": "latest",
     "oxlint": "^1.86.0"
+  },
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.0-rc.117",
+    "@effect/sql-d1": "4.0.0-rc.117",
+    "@effect/sql-sqlite-do": "4.0.0-rc.117",
+    "@effect/vitest": "4.0.0-rc.117"
   }
 }

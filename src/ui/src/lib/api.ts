@@ -2,11 +2,9 @@ import type { BookingRequest, Contact } from "@ccal/shared"
 
 import type { Booking } from "@/pages/booking-page"
 
-const API_URL = import.meta.env.VITE_API_URL
-
+// The API is served by the same Worker as the UI, so requests are same-origin.
 export async function postBookingRequest(booking: Booking, contact: Contact) {
-  if (!API_URL) throw new Error("VITE_API_URL is not set")
-  const response = await fetch(`${API_URL}/api/booking-requests`, {
+  const response = await fetch("/api/booking-requests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

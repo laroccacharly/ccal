@@ -21,14 +21,14 @@
 //   role="alertdialog"             the confirm dialog, with "OK" and "Cancel" buttons
 //   data-testid="success-page"     root of the success page
 //
-// Clicking "OK" POSTs the booking to $VITE_API_URL/api/booking-requests. Playwright points the UI at the
-// fake API in src/test-server; GET /api/booking-requests?email= reads back what was stored.
+// Clicking "OK" POSTs the booking to /api/booking-requests on the same origin as the UI.
+// GET /api/booking-requests?email= reads back what was stored; it requires "Authorization: Bearer $CCAL_API_KEY".
 
 import { test, expect, type Page, type Route } from "@playwright/test";
 
 import type { BookingRequest, Contact } from "@ccal/shared";
 
-const API_URL = process.env.API_URL!;
+const API_KEY = process.env.CCAL_API_KEY!;
 
 const MONTREAL = "America/Toronto"; // IANA has no Montreal zone; it uses Toronto's
 const PARIS = "Europe/Paris";
@@ -450,7 +450,7 @@ test.describe("Confirmation page", () => {
     await expect(page.getByTestId("success-page")).toBeVisible();
   });
 
-  test("the server's booking-request API returns exactly one booking with the entered data", async ({ page, request }) => {
+  test("the server's booking-request API, called with the API key, returns exactly one booking with the entered data", async ({ page, request }) => {
     // Tests share one server, so a unique email identifies this test's booking.
     const email = `ada+${test.info().testId}-${Date.now()}@example.com`;
     const { isoDate: date, time, timeZone } = await goToConfirmation(page, PARIS);
@@ -459,7 +459,10 @@ test.describe("Confirmation page", () => {
     await confirmDialog(page).getByRole("button", { name: "OK" }).click();
     await expect(page.getByTestId("success-page")).toBeVisible();
 
-    const response = await request.get(`${API_URL}/api/booking-requests`, { params: { email } });
+    const response = await request.get("/api/booking-requests", {
+      params: { email },
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    });
     expect(response.ok()).toBe(true);
     const bookings: BookingRequest[] = await response.json();
     expect(bookings).toHaveLength(1);
@@ -472,6 +475,15 @@ test.describe("Confirmation page", () => {
     expect(inZone(bookings[0].startsAt, timeZone)).toEqual({ date, time });
   });
 
+  test("the server's booking-request API rejects listing bookings without a valid API key", async ({ request }) => {
+    // No key, a wrong key, and the right key without the "Bearer " scheme.
+    const attempts: Record<string, string>[] = [{}, { Authorization: "Bearer wrong-key" }, { Authorization: API_KEY }];
+    for (const headers of attempts) {
+      const response = await request.get("/api/booking-requests", { headers });
+      expect(response.status()).toBe(401);
+    }
+  });
+
   test("when the booking request fails, the dialog shows an error and the page stays on the confirmation page", async ({ page }) => {
     await goToConfirmation(page);
     await fillContact(page);
@@ -482,7 +494,7 @@ test.describe("Confirmation page", () => {
     const failures = [(route: Route) => route.fulfill({ status: 500 }), (route: Route) => route.abort("connectionrefused")];
     for (const fail of failures) {
       await page.unrouteAll();
-      await page.route(`${API_URL}/api/booking-requests`, fail);
+      await page.route("**/api/booking-requests", fail);
       await ok.click();
       await expect(page.getByTestId("booking-error")).toBeVisible();
       await expect(confirmDialog(page)).toBeVisible();
