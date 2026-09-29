@@ -2,6 +2,8 @@
 - Go to the URL
 - Wait until the page loads
 - Assert the page content contains "Google Meet"
+- Assert url contains "#" (hashrouter)
+- Assert url contains "form"
 
 # Date select
 - Get the current day, month and year from the local machine
@@ -27,3 +29,4 @@
 
 # Confirmation page
 - Empty for now
+- Assert url contains "confirm"

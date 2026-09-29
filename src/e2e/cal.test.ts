@@ -84,6 +84,11 @@ test.describe("Page load", () => {
   test("shows the meeting type", async ({ page }) => {
     await expect(page.locator("body")).toContainText("Google Meet");
   });
+
+  test("uses a hash router on the form route", async ({ page }) => {
+    await expect(page).toHaveURL(/#/);
+    await expect(page).toHaveURL(/form/);
+  });
 });
 
 test.describe("Date select", () => {
@@ -93,6 +98,7 @@ test.describe("Date select", () => {
 
   test("greys out past days, today and tomorrow", async ({ page }) => {
     const tomorrow = isoDate(addDays(new Date(), 1));
+    await expect(days(page).first()).toBeVisible();
     const dates = await days(page).evaluateAll((els) => els.map((el) => el.getAttribute("data-date")!));
     const unavailable = dates.filter((date) => date <= tomorrow);
     expect(unavailable.length).toBeGreaterThan(0);
@@ -194,5 +200,14 @@ test.describe("Time select", () => {
     await timeSlots(page).first().click();
     await confirmButton(page).click();
     await expect(page.getByTestId("confirmation-page")).toBeVisible();
+  });
+});
+
+test.describe("Confirmation page", () => {
+  test("url contains confirm", async ({ page }) => {
+    await selectFirstAvailableDate(page);
+    await timeSlots(page).first().click();
+    await confirmButton(page).click();
+    await expect(page).toHaveURL(/confirm/);
   });
 });
