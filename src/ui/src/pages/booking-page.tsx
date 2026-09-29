@@ -36,6 +36,7 @@ const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (
   const leadingBlanks = new Date(view.year, view.month, 1).getDay()
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate()
   const days = Array.from({ length: daysInMonth }, (_, i) => isoDate(new Date(view.year, view.month, i + 1)))
+  const noAvailableDays = days.every((date) => date < firstBookable)
 
   const shiftMonth = (delta: number) => {
     const next = new Date(view.year, view.month + delta, 1)
@@ -74,7 +75,7 @@ const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (
         {selected ? formatSelectedDate(selected) : "Select a date"}
       </p>
 
-      <div className="grid grid-cols-7 gap-1 text-center">
+      <div className="relative grid grid-cols-7 gap-1 text-center">
         {WEEKDAYS.map((weekday) => (
           <span key={weekday} className="pb-1 text-xs text-muted-foreground">
             {weekday}
@@ -97,6 +98,13 @@ const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (
             {Number(date.slice(8))}
           </Button>
         ))}
+        {noAvailableDays && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-card/70 backdrop-blur-[1px]">
+            <p data-testid="no-available-days" role="status" className="rounded-2xl border bg-card px-4 py-2 text-sm font-medium shadow-sm">
+              No available days this month
+            </p>
+          </div>
+        )}
       </div>
     </Panel>
   )

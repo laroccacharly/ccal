@@ -7,6 +7,7 @@
 //   data-testid="day"              one <button> per day, with data-date="YYYY-MM-DD";
 //                                  "greyed out" means the button is disabled
 //   data-testid="selected-date"    shows the currently selected date
+//   data-testid="no-available-days" banner shown when every day in the displayed month is disabled
 //   data-testid="timezone-select"  <select> whose option values are IANA zones
 //   data-testid="current-time"     text "Current time: HH:mm" (24h) in the selected zone
 //   data-testid="time-slot"        one <button> per time slot, text "HH:mm" (24h)
@@ -83,6 +84,7 @@ const days = (page: Page) => page.getByTestId("day");
 const day = (page: Page, date: string) => page.locator(`[data-testid="day"][data-date="${date}"]`);
 const enabledDays = (page: Page) => page.locator('[data-testid="day"]:not([disabled])');
 const selectedDate = (page: Page) => page.getByTestId("selected-date");
+const noAvailableDays = (page: Page) => page.getByTestId("no-available-days");
 const timeSlots = (page: Page) => page.getByTestId("time-slot");
 const timezoneSelect = (page: Page) => page.getByTestId("timezone-select");
 const confirmButton = (page: Page) => page.getByTestId("confirm-button");
@@ -207,6 +209,31 @@ test.describe("Date select", () => {
     const now = new Date();
     await expect(monthLabelEl(page)).toHaveText(monthLabel(new Date(now.getFullYear(), now.getMonth() + 3, 1)));
     await expect(next).toBeDisabled();
+  });
+
+  test('shows a "No available days this month" banner when every day is disabled', async ({ page }) => {
+    // The earliest bookable day is October 1, so every September day is disabled.
+    await page.clock.install({ time: new Date("2026-09-29T10:00:00") });
+    await page.goto("/");
+    await expect(monthLabelEl(page)).toHaveText("September 2026");
+    await expect(enabledDays(page)).toHaveCount(0);
+    await expect(noAvailableDays(page)).toHaveText("No available days this month");
+    // The banner is laid over the calendar days: its center falls between the first and last day.
+    const banner = (await noAvailableDays(page).boundingBox())!;
+    const firstDay = (await days(page).first().boundingBox())!;
+    const lastDay = (await days(page).last().boundingBox())!;
+    const bannerCenterY = banner.y + banner.height / 2;
+    expect(bannerCenterY).toBeGreaterThan(firstDay.y);
+    expect(bannerCenterY).toBeLessThan(lastDay.y + lastDay.height);
+  });
+
+  test('hides the "No available days this month" banner when some days are available', async ({ page }) => {
+    // The earliest bookable day is October 3, so October still has available days.
+    await page.clock.install({ time: new Date("2026-10-01T10:00:00") });
+    await page.goto("/");
+    await expect(monthLabelEl(page)).toHaveText("October 2026");
+    await expect(enabledDays(page).first()).toBeVisible();
+    await expect(noAvailableDays(page)).toBeHidden();
   });
 });
 

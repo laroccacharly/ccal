@@ -15,6 +15,8 @@
 - Assert selecting a date in the next month updates the selected date
 - Assert selected date has the format "Month Day Year"
 - Assert next month arrow is disabled at 3 months out in the future 
+- Assert a "No available days this month" banner is shown on top of the calendar days when every day in the displayed month is disabled, and hidden otherwise
+  - Fake the clock to September 29 2026 (banner shown) and to October 1 2026 (no banner)
 
 # Time select
 - Assert the time slots are disabled until a date is selected
