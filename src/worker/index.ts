@@ -19,6 +19,7 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
       name: "ccal",
       main: import.meta.url,
       compatibility: {
+        // Must not be newer than what Alchemy's bundled workerd supports, or it fails with a ConfigError.
         date: "2026-09-01",
         flags: ["nodejs_compat" as const],
       },
