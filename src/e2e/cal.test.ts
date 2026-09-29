@@ -23,7 +23,7 @@
 // Clicking "OK" POSTs the booking to $VITE_API_URL/api/booking-requests. Playwright points the UI at the
 // fake API in src/test-server; GET /api/booking-requests?email= reads back what was stored.
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Route } from "@playwright/test";
 
 const API_URL = process.env.API_URL!;
 
@@ -433,6 +433,26 @@ test.describe("Confirmation page", () => {
       email,
       description: contact.description,
     });
+  });
+
+  test("when the booking request fails, the dialog shows an error and the page stays on the confirmation page", async ({ page }) => {
+    await goToConfirmation(page);
+    await fillContact(page);
+    await submitButton(page).click();
+    const ok = confirmDialog(page).getByRole("button", { name: "OK" });
+
+    // Covers both a server error response and the server being unreachable.
+    const failures = [(route: Route) => route.fulfill({ status: 500 }), (route: Route) => route.abort("connectionrefused")];
+    for (const fail of failures) {
+      await page.unrouteAll();
+      await page.route(`${API_URL}/api/booking-requests`, fail);
+      await ok.click();
+      await expect(page.getByTestId("booking-error")).toBeVisible();
+      await expect(confirmDialog(page)).toBeVisible();
+      await expect(page).toHaveURL(/confirm/);
+      await expect(page.getByTestId("success-page")).toBeHidden();
+      await expect(ok).toBeEnabled();
+    }
   });
 });
 

@@ -45,6 +45,7 @@
 - Assert clicking "Cancel" closes the dialog
 - Assert clicking "OK" navigates to the success page
 - Assert the server's booking-request API returns exactly one booking with the entered data
+- Assert that when the booking request fails, the dialog shows an error and the page stays on the confirmation page
 
 # Success page
 - Assert url contains "success"
