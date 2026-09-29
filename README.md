@@ -33,10 +33,10 @@ One Cloudflare Worker (`src/worker`, written with Effect) serves the built UI (`
 ```sh
 bun run plan        # preview infra changes
 bun run deploy      # builds the UI, then deploys
-bun run dev:worker  # run the Worker locally (http://localhost:1337) with a local D1; `bun dev` proxies /api to it
+bun dev             # alchemy dev: the UI with hot reload on http://localhost:3000, /api proxied to the local Worker (+ local D1)
 ```
 
-`bun test:e2e` builds the UI and runs the stack under `alchemy dev --stage e2e` on port 3100. Listing bookings (`GET /api/booking-requests[?email=]`) requires `Authorization: Bearer $CCAL_API_KEY`; set `CCAL_API_KEY` in `.env` before `dev:worker` or `deploy` (e.g. `openssl rand -hex 32`). Booking (`POST`) stays public for the UI. The e2e run uses its own key.
+`bun test:e2e` builds the UI and runs the stack under `alchemy dev --stage e2e` on port 3100 with `DEV_UI=false`, so it tests the built UI served by the Worker, as in prod. Listing bookings (`GET /api/booking-requests[?email=]`) requires `Authorization: Bearer $CCAL_API_KEY`; set `CCAL_API_KEY` in `.env` before `bun dev` or `deploy` (e.g. `openssl rand -hex 32`). Booking (`POST`) stays public for the UI. The e2e run uses its own key.
 
 The Worker's compatibility date must not be newer than what Alchemy's bundled workerd supports (it fails with a `ConfigError` otherwise).
 

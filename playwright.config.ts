@@ -20,7 +20,7 @@ export default defineConfig({
     : {
         command: "bun run build && bunx alchemy dev --stage e2e",
         url: `http://localhost:${PORT}`,
-        env: { DEV_PORT: String(PORT), CCAL_API_KEY: process.env.CCAL_API_KEY },
+        env: { DEV_PORT: String(PORT), DEV_UI: "false", CCAL_API_KEY: process.env.CCAL_API_KEY },
         reuseExistingServer: false,
         timeout: 120_000,
         // SIGINT is alchemy dev's Ctrl+C: it stops workerd and its sidecars; the default SIGKILL can orphan them.

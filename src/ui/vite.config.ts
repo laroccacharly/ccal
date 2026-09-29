@@ -15,7 +15,7 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
-    // The booking API is the Worker; run it with `bun run dev:worker`.
-    proxy: { "/api": "http://localhost:1337" },
+    // The booking API is the local Worker: `bun dev` (alchemy dev) starts both and sets API_URL to its URL.
+    proxy: process.env.API_URL ? { "/api": process.env.API_URL } : undefined,
   },
 })

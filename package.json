@@ -11,11 +11,10 @@
     "ccal": "src/cli.ts"
   },
   "scripts": {
-    "dev": "bun --filter ui dev",
+    "dev": "alchemy dev",
     "build": "bun --filter ui build",
     "test:e2e": "playwright test",
     "lint": "oxlint --deny-warnings",
-    "dev:worker": "alchemy dev",
     "plan": "alchemy plan",
     "deploy": "bun run build && alchemy deploy --yes"
   },
