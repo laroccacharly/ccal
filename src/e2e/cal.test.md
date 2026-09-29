@@ -20,7 +20,7 @@
 - Assert the time slots are disabled until a date is selected
 - Assert the time picker shows 3 time slots
 - Assert default time zone is Montreal Canada.
-- Assert time slots in Montreal time zone are: 13h30, 15:30 and 16:30. 
+- Assert time slots in Montreal time zone are: 13:30, 15:30 and 16:30. 
 - Assert switching the time zone updates the time slots accordingly
   - Test with the France (Europe/Paris) and Vancouver (America/Vancouver) time zones
 - Assert there is a "Current time: " with the current time for the selected time zone.
@@ -30,5 +30,21 @@
 - Assert clicking the confirm button navigates to the confirmation page
 
 # Confirmation page
-- Empty for now
 - Assert url contains "confirm"
+- Assert the page shows the selected date, time and time zone
+- Assert the page shows a message explaining that the meeting link will be sent once we confirm the booking on our end
+- Assert there is a form with Name, Email and Description fields
+- Assert clicking the confirm button runs the form validations
+- Assert the name is non-empty
+- Assert the email has a valid format
+- Assert the description is non-empty
+- Assert every field (Name, Email and Description) is rejected when it contains a dangerous string
+- Assert the confirm button is disabled until all 3 fields are non-empty
+- Assert clicking the confirm button opens an alert dialog
+- Assert the dialog shows the date and time, with "OK" and "Cancel" buttons
+- Assert clicking "Cancel" closes the dialog
+- Assert clicking "OK" navigates to the success page
+
+# Success page
+- Assert url contains "success"
+- Assert the page shows the selected date and time, and the entered name, email and description

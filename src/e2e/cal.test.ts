@@ -12,6 +12,13 @@
 //   data-testid="time-slot"        one <button> per time slot, text "HH:mm" (24h)
 //   data-testid="confirm-button"   the "ok" button
 //   data-testid="confirmation-page" root of the confirmation page
+//   data-testid="summary"          the booking summary: date, time and time zone
+//   data-testid="meeting-link-message" note that the meeting link is sent once we confirm
+//   labels "Name", "Email", "Description" the contact form fields
+//   data-testid="name-error" / "email-error" / "description-error" validation messages
+//   data-testid="submit-button"    the confirmation page's "Confirm" button
+//   role="alertdialog"             the confirm dialog, with "OK" and "Cancel" buttons
+//   data-testid="success-page"     root of the success page
 
 import { test, expect, type Page } from "@playwright/test";
 
@@ -91,6 +98,37 @@ async function selectFirstAvailableDate(page: Page) {
   return date!;
 }
 
+// Books the first available slot in `timeZone` and returns what was selected.
+async function goToConfirmation(page: Page, timeZone = MONTREAL) {
+  const date = await selectFirstAvailableDate(page);
+  await timezoneSelect(page).selectOption(timeZone);
+  const slot = timeSlots(page).first();
+  const time = (await slot.textContent())!;
+  await slot.click();
+  await confirmButton(page).click();
+  await expect(page.getByTestId("confirmation-page")).toBeVisible();
+  return { date: formatSelectedDate(date), time };
+}
+
+// "October 1 2026", from "2026-10-01"
+function formatSelectedDate(date: string) {
+  const [year, month, dayOfMonth] = date.split("-").map(Number);
+  const monthName = new Date(year, month - 1, 1).toLocaleString("en-US", { month: "long" });
+  return `${monthName} ${dayOfMonth} ${year}`;
+}
+
+const contact = { name: "Ada Lovelace", email: "ada@example.com", description: "Talk about the Analytical Engine" };
+
+async function fillContact(page: Page, values: Partial<typeof contact> = {}) {
+  const { name, email, description } = { ...contact, ...values };
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Description").fill(description);
+}
+
+const submitButton = (page: Page) => page.getByTestId("submit-button");
+const confirmDialog = (page: Page) => page.getByRole("alertdialog");
+
 async function slotTimes(page: Page) {
   return (await timeSlots(page).allTextContents()).map(toMinutes);
 }
@@ -152,9 +190,7 @@ test.describe("Date select", () => {
 
   test('selected date has the format "Month Day Year"', async ({ page }) => {
     const date = await selectFirstAvailableDate(page);
-    const [year, month, dayOfMonth] = date.split("-").map(Number);
-    const monthName = new Date(year, month - 1, 1).toLocaleString("en-US", { month: "long" });
-    await expect(selectedDate(page)).toHaveText(`${monthName} ${dayOfMonth} ${year}`);
+    await expect(selectedDate(page)).toHaveText(formatSelectedDate(date));
   });
 
   test("next month arrow is disabled at 3 months out", async ({ page }) => {
@@ -236,9 +272,160 @@ test.describe("Time select", () => {
 
 test.describe("Confirmation page", () => {
   test("url contains confirm", async ({ page }) => {
-    await selectFirstAvailableDate(page);
-    await timeSlots(page).first().click();
-    await confirmButton(page).click();
+    await goToConfirmation(page);
     await expect(page).toHaveURL(/confirm/);
+  });
+
+  test("shows the selected date, time and time zone", async ({ page }) => {
+    const { date, time } = await goToConfirmation(page, PARIS);
+    const summary = page.getByTestId("summary");
+    await expect(summary).toContainText(date);
+    await expect(summary).toContainText(time);
+    await expect(summary).toContainText("Paris, France");
+  });
+
+  test("explains that the meeting link is sent once we confirm", async ({ page }) => {
+    await goToConfirmation(page);
+    await expect(page.getByTestId("meeting-link-message")).toContainText(/meeting link will be sent.*confirm/i);
+  });
+
+  test("has Name, Email and Description fields", async ({ page }) => {
+    await goToConfirmation(page);
+    await expect(page.getByLabel("Name")).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Description")).toBeVisible();
+  });
+
+  test("clicking confirm runs the form validations", async ({ page }) => {
+    await goToConfirmation(page);
+    await fillContact(page, { name: "<b>", email: "nope", description: " " });
+    await submitButton(page).click();
+    await expect(page.getByTestId("name-error")).toBeVisible();
+    await expect(page.getByTestId("email-error")).toBeVisible();
+    await expect(page.getByTestId("description-error")).toBeVisible();
+    await expect(confirmDialog(page)).toBeHidden();
+  });
+
+  test("name must be non-empty", async ({ page }) => {
+    await goToConfirmation(page);
+    await fillContact(page, { name: "   " });
+    await submitButton(page).click();
+    await expect(page.getByTestId("name-error")).toBeVisible();
+    await fillContact(page, { name: "Anne-Marie O'Neil" });
+    await submitButton(page).click();
+    await expect(page.getByTestId("name-error")).toBeHidden();
+  });
+
+  test("email must have a valid format", async ({ page }) => {
+    await goToConfirmation(page);
+    for (const email of ["ada", "ada@", "ada@example", "ada @example.com"]) {
+      await fillContact(page, { email });
+      await submitButton(page).click();
+      await expect(page.getByTestId("email-error")).toBeVisible();
+    }
+    await fillContact(page);
+    await submitButton(page).click();
+    await expect(page.getByTestId("email-error")).toBeHidden();
+  });
+
+  test("description must be non-empty", async ({ page }) => {
+    await goToConfirmation(page);
+    await fillContact(page, { description: "   " });
+    await submitButton(page).click();
+    await expect(page.getByTestId("description-error")).toBeVisible();
+    await fillContact(page);
+    await submitButton(page).click();
+    await expect(page.getByTestId("description-error")).toBeHidden();
+  });
+
+  test("every field rejects dangerous strings", async ({ page }) => {
+    await goToConfirmation(page);
+    const fields = [
+      { label: "Name", key: "name" },
+      { label: "Email", key: "email" },
+      { label: "Description", key: "description" },
+    ] as const;
+    for (const { label, key } of fields) {
+      for (const dangerous of ["<script>alert(1)</script>", "javascript:alert(1)", "{{7*7}}"]) {
+        // Keep the value otherwise valid so only the dangerous string can trigger the error.
+        const value = key === "email" ? `${dangerous}@example.com` : `${contact[key]} ${dangerous}`;
+        await fillContact(page, { [key]: value });
+        await submitButton(page).click();
+        await expect(page.getByTestId(`${key}-error`), `${label}: ${value}`).toBeVisible();
+        await expect(confirmDialog(page)).toBeHidden();
+      }
+      await fillContact(page);
+      await submitButton(page).click();
+      await expect(page.getByTestId(`${key}-error`)).toBeHidden();
+      await page.keyboard.press("Escape");
+      await expect(confirmDialog(page)).toBeHidden();
+    }
+  });
+
+  test("confirm button is disabled until all 3 fields are non-empty", async ({ page }) => {
+    await goToConfirmation(page);
+    await expect(submitButton(page)).toBeDisabled();
+    await page.getByLabel("Name").fill(contact.name);
+    await expect(submitButton(page)).toBeDisabled();
+    await page.getByLabel("Email").fill(contact.email);
+    await expect(submitButton(page)).toBeDisabled();
+    await page.getByLabel("Description").fill(contact.description);
+    await expect(submitButton(page)).toBeEnabled();
+  });
+
+  test("clicking confirm opens an alert dialog", async ({ page }) => {
+    await goToConfirmation(page);
+    await fillContact(page);
+    await submitButton(page).click();
+    await expect(confirmDialog(page)).toBeVisible();
+  });
+
+  test('dialog shows the date and time, with "OK" and "Cancel" buttons', async ({ page }) => {
+    const { date, time } = await goToConfirmation(page);
+    await fillContact(page);
+    await submitButton(page).click();
+    await expect(confirmDialog(page)).toContainText(date);
+    await expect(confirmDialog(page)).toContainText(time);
+    await expect(confirmDialog(page).getByRole("button", { name: "OK" })).toBeVisible();
+    await expect(confirmDialog(page).getByRole("button", { name: "Cancel" })).toBeVisible();
+  });
+
+  test('clicking "Cancel" closes the dialog', async ({ page }) => {
+    await goToConfirmation(page);
+    await fillContact(page);
+    await submitButton(page).click();
+    await confirmDialog(page).getByRole("button", { name: "Cancel" }).click();
+    await expect(confirmDialog(page)).toBeHidden();
+    await expect(page).toHaveURL(/confirm/);
+  });
+
+  test('clicking "OK" navigates to the success page', async ({ page }) => {
+    await goToConfirmation(page);
+    await fillContact(page);
+    await submitButton(page).click();
+    await confirmDialog(page).getByRole("button", { name: "OK" }).click();
+    await expect(page.getByTestId("success-page")).toBeVisible();
+  });
+});
+
+test.describe("Success page", () => {
+  async function goToSuccess(page: Page) {
+    const selected = await goToConfirmation(page);
+    await fillContact(page);
+    await submitButton(page).click();
+    await confirmDialog(page).getByRole("button", { name: "OK" }).click();
+    await expect(page.getByTestId("success-page")).toBeVisible();
+    return selected;
+  }
+
+  test("url contains success", async ({ page }) => {
+    await goToSuccess(page);
+    await expect(page).toHaveURL(/success/);
+  });
+
+  test("shows the selected date and time, and the entered name, email and description", async ({ page }) => {
+    const { date, time } = await goToSuccess(page);
+    const success = page.getByTestId("success-page");
+    for (const text of [date, time, contact.name, contact.email, contact.description]) await expect(success).toContainText(text);
   });
 });

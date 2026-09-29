@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from "r
 
 import { BookingPage, type Booking } from "@/pages/booking-page"
 import { ConfirmationPage } from "@/pages/confirmation-page"
+import { SuccessPage, type ConfirmedBooking } from "@/pages/success-page"
 
 const FormRoute = () => {
   const navigate = useNavigate()
@@ -9,8 +10,20 @@ const FormRoute = () => {
 }
 
 const ConfirmRoute = () => {
+  const navigate = useNavigate()
   const booking = useLocation().state as Booking | null
-  return booking ? <ConfirmationPage booking={booking} /> : <Navigate to="/form" replace />
+  if (!booking) return <Navigate to="/form" replace />
+  return (
+    <ConfirmationPage
+      booking={booking}
+      onConfirm={(contact) => navigate("/success", { state: { ...booking, ...contact } satisfies ConfirmedBooking })}
+    />
+  )
+}
+
+const SuccessRoute = () => {
+  const booking = useLocation().state as ConfirmedBooking | null
+  return booking ? <SuccessPage booking={booking} /> : <Navigate to="/form" replace />
 }
 
 export const App = () => (
@@ -19,6 +32,7 @@ export const App = () => (
       <Routes>
         <Route path="/form" element={<FormRoute />} />
         <Route path="/confirm" element={<ConfirmRoute />} />
+        <Route path="/success" element={<SuccessRoute />} />
         <Route path="*" element={<Navigate to="/form" replace />} />
       </Routes>
     </main>

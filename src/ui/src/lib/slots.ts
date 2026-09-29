@@ -12,6 +12,10 @@ export const TIME_ZONES = [
   { value: "Asia/Tokyo", label: "Tokyo, Japan" },
 ]
 
+export function timeZoneLabel(timeZone: string) {
+  return TIME_ZONES.find((zone) => zone.value === timeZone)?.label ?? timeZone
+}
+
 // Offset of `timeZone` from UTC at `instant`, in milliseconds.
 function zoneOffset(instant: number, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
