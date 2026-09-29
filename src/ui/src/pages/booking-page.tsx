@@ -1,6 +1,6 @@
 import { ArrowLeft01Icon, ArrowRight01Icon, Clock01Icon, Video01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/components/ui/lib/utils"
@@ -102,6 +102,21 @@ const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (
   )
 }
 
+const CurrentTime = ({ timeZone }: { timeZone: string }) => {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const time = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now)
+
+  return (
+    <p data-testid="current-time" className="text-sm text-muted-foreground">
+      Current time: {time}
+    </p>
+  )
+}
+
 const TimePicker = ({ date, onConfirm }: { date: string | null; onConfirm: (booking: Booking) => void }) => {
   const [timeZone, setTimeZone] = useState(HOST_TIME_ZONE)
   const [selected, setSelected] = useState<number | null>(null)
@@ -124,6 +139,7 @@ const TimePicker = ({ date, onConfirm }: { date: string | null; onConfirm: (book
           </option>
         ))}
       </select>
+      <CurrentTime timeZone={timeZone} />
 
       {slots.map((s) => (
         <Button

@@ -8,6 +8,7 @@
 //                                  "greyed out" means the button is disabled
 //   data-testid="selected-date"    shows the currently selected date
 //   data-testid="timezone-select"  <select> whose option values are IANA zones
+//   data-testid="current-time"     text "Current time: HH:mm" (24h) in the selected zone
 //   data-testid="time-slot"        one <button> per time slot, text "HH:mm" (24h)
 //   data-testid="confirm-button"   the "ok" button
 //   data-testid="confirmation-page" root of the confirmation page
@@ -48,6 +49,18 @@ function parisMinusVancouverMinutes(day: string) {
   return offset(PARIS) - offset(VANCOUVER);
 }
 
+// Current wall-clock time in `timeZone`, in minutes since midnight.
+function nowInZoneMinutes(timeZone: string) {
+  const time = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
+  return toMinutes(time);
+}
+
+// Distance between two times of day in minutes, wrapping around midnight.
+function minutesApart(a: number, b: number) {
+  const diff = Math.abs(a - b) % (24 * 60);
+  return Math.min(diff, 24 * 60 - diff);
+}
+
 function toMinutes(time: string) {
   const [hours, minutes] = time.trim().split(":").map(Number);
   return hours * 60 + minutes;
@@ -61,6 +74,13 @@ const selectedDate = (page: Page) => page.getByTestId("selected-date");
 const timeSlots = (page: Page) => page.getByTestId("time-slot");
 const timezoneSelect = (page: Page) => page.getByTestId("timezone-select");
 const confirmButton = (page: Page) => page.getByTestId("confirm-button");
+const currentTime = (page: Page) => page.getByTestId("current-time");
+
+async function expectCurrentTimeIn(page: Page, timeZone: string) {
+  await expect(currentTime(page)).toHaveText(/^Current time: \d{2}:\d{2}$/);
+  const shown = toMinutes((await currentTime(page).textContent())!.replace("Current time:", ""));
+  expect(minutesApart(shown, nowInZoneMinutes(timeZone))).toBeLessThanOrEqual(1);
+}
 
 // Selects the first available date, moving to the next month if the current one has none left.
 async function selectFirstAvailableDate(page: Page) {
@@ -185,6 +205,17 @@ test.describe("Time select", () => {
 
     const shift = parisMinusVancouverMinutes(date);
     expect(paris).toEqual(vancouver.map((minutes) => (minutes + shift) % (24 * 60)));
+  });
+
+  test('shows "Current time: " for the selected time zone', async ({ page }) => {
+    await expectCurrentTimeIn(page, MONTREAL);
+  });
+
+  test("current time follows the selected time zone", async ({ page }) => {
+    await timezoneSelect(page).selectOption(PARIS);
+    await expectCurrentTimeIn(page, PARIS);
+    await timezoneSelect(page).selectOption(VANCOUVER);
+    await expectCurrentTimeIn(page, VANCOUVER);
   });
 
   test("confirm button is disabled until a time slot is selected", async ({ page }) => {

@@ -23,6 +23,8 @@
 - Assert time slots in Montreal time zone are: 13h30, 15:30 and 16:30. 
 - Assert switching the time zone updates the time slots accordingly
   - Test with the France (Europe/Paris) and Vancouver (America/Vancouver) time zones
+- Assert there is a "Current time: " with the current time for the selected time zone.
+- Assert current time changes to match the selected time zone (with a 1 minute tolerance)
 - Assert the confirm button is greyed out and disabled until a time slot is selected
 - Assert the confirm button is enabled once a time slot is selected
 - Assert clicking the confirm button navigates to the confirmation page
