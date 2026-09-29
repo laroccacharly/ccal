@@ -3,8 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "src/ui"
+  ],
   "bin": {
     "ccal": "src/cli.ts"
+  },
+  "scripts": {
+    "dev": "bun --filter ui dev",
+    "build": "bun --filter ui build",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

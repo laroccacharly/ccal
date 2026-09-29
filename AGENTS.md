@@ -1,6 +1,7 @@
 - use bun 
+- bun lint must pass
 - use playwright to test e2e
 - Always maintain parity between a .test.md and test.ts
 - By convention, we should update the .test.md before the test.ts
 - Always mention it when you change a .test.md file
-
+- see design-image for rough visual direction.

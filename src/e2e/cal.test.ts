@@ -14,6 +14,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 
+const MONTREAL = "America/Toronto"; // IANA has no Montreal zone; it uses Toronto's
 const PARIS = "Europe/Paris";
 const VANCOUVER = "America/Vancouver";
 
@@ -122,6 +123,24 @@ test.describe("Date select", () => {
     await enabledDays(page).first().click();
     await expect(selectedDate(page)).not.toHaveText(before ?? "");
   });
+
+  test('selected date has the format "Month Day Year"', async ({ page }) => {
+    const date = await selectFirstAvailableDate(page);
+    const [year, month, dayOfMonth] = date.split("-").map(Number);
+    const monthName = new Date(year, month - 1, 1).toLocaleString("en-US", { month: "long" });
+    await expect(selectedDate(page)).toHaveText(`${monthName} ${dayOfMonth} ${year}`);
+  });
+
+  test("next month arrow is disabled at 3 months out", async ({ page }) => {
+    const next = page.getByTestId("next-month");
+    for (let i = 0; i < 3; i++) {
+      await expect(next).toBeEnabled();
+      await next.click();
+    }
+    const now = new Date();
+    await expect(monthLabelEl(page)).toHaveText(monthLabel(new Date(now.getFullYear(), now.getMonth() + 3, 1)));
+    await expect(next).toBeDisabled();
+  });
 });
 
 test.describe("Time select", () => {
@@ -134,6 +153,16 @@ test.describe("Time select", () => {
   test("shows 3 time slots", async ({ page }) => {
     await selectFirstAvailableDate(page);
     await expect(timeSlots(page)).toHaveCount(3);
+  });
+
+  test("default time zone is Montreal, Canada", async ({ page }) => {
+    await expect(timezoneSelect(page)).toHaveValue(MONTREAL);
+    await expect(timezoneSelect(page).locator("option:checked")).toContainText("Montreal");
+  });
+
+  test("time slots in Montreal are 13:30, 15:30 and 16:30", async ({ page }) => {
+    await selectFirstAvailableDate(page);
+    await expect(timeSlots(page)).toHaveText(["13:30", "15:30", "16:30"]);
   });
 
   test("switching the time zone updates the time slots", async ({ page }) => {
