@@ -17,6 +17,8 @@
 - Assert next month arrow is disabled at 3 months out in the future 
 - Assert a "No available days this month" banner is shown on top of the calendar days when every day in the displayed month is disabled, and hidden otherwise
   - Fake the clock to September 29 2026 (banner shown) and to October 1 2026 (no banner)
+- Assert the calendar only offers the days the server says are available
+- Assert that when the available days cannot be loaded, a "Could not load available days" banner is shown on top of the calendar days
 
 # Time select
 - Assert the time slots are disabled until a date is selected
@@ -27,6 +29,7 @@
   - Test with the France (Europe/Paris) and Vancouver (America/Vancouver) time zones
 - Assert there is a "Current time: " with the current time for the selected time zone.
 - Assert current time changes to match the selected time zone (with a 1 minute tolerance)
+- Assert the time slots offered for a date are the ones the server gives for that date
 - Assert the confirm button is greyed out and disabled until a time slot is selected
 - Assert the confirm button is enabled once a time slot is selected
 - Assert clicking the confirm button navigates to the confirmation page
@@ -48,6 +51,8 @@
 - Assert clicking "OK" navigates to the success page
 - Assert the server's booking-request API, called with the API key, returns exactly one booking with the entered data; the selected date and time are stored as a single ISO datetime (`startsAt`) alongside the time zone
 - Assert the server's booking-request API rejects listing bookings without a valid API key
+- Assert the server's booking-request API rejects, and does not store, a booking that is not for an available time slot: a past date, today, tomorrow, a date more than 3 months out, or a time that is not one of the offered slots
+- Assert the server's booking-request API rejects, and does not store, a booking with a time zone the UI does not offer
 - Assert that when the booking request fails, the dialog shows an error and the page stays on the confirmation page
 
 # Success page

@@ -1,13 +1,18 @@
 import { ArrowLeft01Icon, ArrowRight01Icon, Clock01Icon, Video01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import type { Availability } from "@ccal/shared"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/components/ui/lib/utils"
-import { MAX_MONTHS_AHEAD, firstBookableDate, formatSelectedDate, isoDate, monthLabel } from "@/lib/dates"
-import { HOST_TIME_ZONE, TIME_ZONES, slotsFor, type Slot } from "@/lib/slots"
+import { getAvailability } from "@/lib/api"
+import { formatSelectedDate, fromIsoDate, isoDate, monthLabel } from "@/lib/dates"
+import { HOST_TIME_ZONE, TIME_ZONES, slotsIn, type Slot } from "@/lib/slots"
 
 export type Booking = { date: string; slot: Slot; timeZone: string }
+
+// Bookable days mapped to their slots (ISO datetimes), or why they are not known yet.
+type Days = Map<string, string[]> | "loading" | "error"
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
@@ -27,16 +32,36 @@ const MeetingInfo = () => (
   </Panel>
 )
 
-const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (date: string) => void }) => {
+const Banner = ({ testId, children }: { testId: string; children: React.ReactNode }) => (
+  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-card/70 backdrop-blur-[1px]">
+    <p data-testid={testId} role="status" className="rounded-2xl border bg-card px-4 py-2 text-sm font-medium shadow-sm">
+      {children}
+    </p>
+  </div>
+)
+
+const Calendar = ({
+  days: bookable,
+  selected,
+  onSelect,
+}: {
+  days: Days
+  selected: string | null
+  onSelect: (date: string) => void
+}) => {
   const [today] = useState(() => new Date())
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() })
   const monthsAhead = (view.year - today.getFullYear()) * 12 + view.month - today.getMonth()
-  const firstBookable = firstBookableDate(today)
+  const isBookable = (date: string) => typeof bookable !== "string" && bookable.has(date)
+  // The last month with a bookable day, counted from the current one.
+  const lastDate = typeof bookable === "string" ? undefined : [...bookable.keys()].at(-1)
+  const last = lastDate ? fromIsoDate(lastDate) : today
+  const maxMonthsAhead = (last.getFullYear() - today.getFullYear()) * 12 + last.getMonth() - today.getMonth()
 
   const leadingBlanks = new Date(view.year, view.month, 1).getDay()
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate()
   const days = Array.from({ length: daysInMonth }, (_, i) => isoDate(new Date(view.year, view.month, i + 1)))
-  const noAvailableDays = days.every((date) => date < firstBookable)
+  const noAvailableDays = typeof bookable !== "string" && !days.some(isBookable)
 
   const shiftMonth = (delta: number) => {
     const next = new Date(view.year, view.month + delta, 1)
@@ -64,7 +89,7 @@ const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (
           size="icon"
           aria-label="Next month"
           data-testid="next-month"
-          disabled={monthsAhead >= MAX_MONTHS_AHEAD}
+          disabled={monthsAhead >= maxMonthsAhead}
           onClick={() => shiftMonth(1)}
         >
           <HugeiconsIcon icon={ArrowRight01Icon} />
@@ -92,19 +117,14 @@ const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (
             data-testid="day"
             data-date={date}
             aria-pressed={date === selected}
-            disabled={date < firstBookable}
+            disabled={!isBookable(date)}
             onClick={() => onSelect(date)}
           >
             {Number(date.slice(8))}
           </Button>
         ))}
-        {noAvailableDays && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-card/70 backdrop-blur-[1px]">
-            <p data-testid="no-available-days" role="status" className="rounded-2xl border bg-card px-4 py-2 text-sm font-medium shadow-sm">
-              No available days this month
-            </p>
-          </div>
-        )}
+        {noAvailableDays && <Banner testId="no-available-days">No available days this month</Banner>}
+        {bookable === "error" && <Banner testId="availability-error">Could not load available days</Banner>}
       </div>
     </Panel>
   )
@@ -125,12 +145,21 @@ const CurrentTime = ({ timeZone }: { timeZone: string }) => {
   )
 }
 
-const TimePicker = ({ date, onConfirm }: { date: string | null; onConfirm: (booking: Booking) => void }) => {
+const TimePicker = ({
+  days,
+  date,
+  onConfirm,
+}: {
+  days: Days
+  date: string | null
+  onConfirm: (booking: Booking) => void
+}) => {
   const [timeZone, setTimeZone] = useState(HOST_TIME_ZONE)
-  const [selected, setSelected] = useState<number | null>(null)
-  const [today] = useState(() => isoDate(new Date()))
-  const slots = slotsFor(date ?? today, timeZone)
-  const slot = date ? slots.find((s) => s.instant === selected) : undefined
+  const [selected, setSelected] = useState<string | null>(null)
+  // Until a date is picked, the first bookable day's slots are shown, disabled.
+  const startsAts = typeof days === "string" ? [] : ((date ? days.get(date) : days.values().next().value) ?? [])
+  const slots = slotsIn(startsAts, timeZone)
+  const slot = date ? slots.find((s) => s.startsAt === selected) : undefined
 
   return (
     <Panel className="flex flex-col gap-3 md:w-56">
@@ -152,12 +181,12 @@ const TimePicker = ({ date, onConfirm }: { date: string | null; onConfirm: (book
 
       {slots.map((s) => (
         <Button
-          key={s.instant}
+          key={s.startsAt}
           variant={s === slot ? "default" : "outline"}
           data-testid="time-slot"
           aria-pressed={s === slot}
           disabled={!date}
-          onClick={() => setSelected(s.instant)}
+          onClick={() => setSelected(s.startsAt)}
         >
           {s.label}
         </Button>
@@ -178,12 +207,24 @@ const TimePicker = ({ date, onConfirm }: { date: string | null; onConfirm: (book
 
 export const BookingPage = ({ onConfirm }: { onConfirm: (booking: Booking) => void }) => {
   const [date, setDate] = useState<string | null>(null)
+  const [days, setDays] = useState<Days>("loading")
+
+  useEffect(() => {
+    let active = true
+    getAvailability().then(
+      (availability: Availability) => active && setDays(new Map(availability.days.map((day) => [day.date, day.slots]))),
+      () => active && setDays("error"),
+    )
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
     <div className="flex flex-col gap-4 rounded-4xl border p-4 md:flex-row">
       <MeetingInfo />
-      <Calendar selected={date} onSelect={setDate} />
-      <TimePicker date={date} onConfirm={onConfirm} />
+      <Calendar days={days} selected={date} onSelect={setDate} />
+      <TimePicker days={days} date={date} onConfirm={onConfirm} />
     </div>
   )
 }

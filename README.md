@@ -37,7 +37,7 @@ bun run deploy      # builds the UI, then deploys
 bun dev             # builds the UI, then alchemy dev: the Worker serves it and /api on http://localhost:1337 (+ local D1)
 ```
 
-`bun test:e2e` builds the UI and runs the stack under `alchemy dev --stage e2e` on port 3100. Listing bookings (`GET /api/booking-requests[?email=]`) requires `Authorization: Bearer $CCAL_API_KEY`; set `CCAL_API_KEY` in `.env` before `bun dev` or `deploy` (e.g. `openssl rand -hex 32`). Booking (`POST`) stays public for the UI. The e2e run uses its own key.
+`bun test:e2e` builds the UI and runs the stack under `alchemy dev --stage e2e` on port 3100. Listing bookings (`GET /api/booking-requests[?email=]`) requires `Authorization: Bearer $CCAL_API_KEY`; set `CCAL_API_KEY` in `.env` before `bun dev` or `deploy` (e.g. `openssl rand -hex 32`). Booking (`POST`) stays public for the UI. The Worker decides what can be booked: `GET /api/availability` (public) lists the bookable days and their slots, the UI only offers those, and `POST` rejects any other time (422) or a time zone the UI doesn't offer (400). The e2e run uses its own key.
 
 The Worker's compatibility date must not be newer than what Alchemy's bundled workerd supports (it fails with a `ConfigError` otherwise).
 

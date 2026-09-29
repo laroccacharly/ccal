@@ -57,6 +57,7 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
             ),
           RateLimitUnavailable: () => jsonError("rate_limit_unavailable", 503),
           Unauthorized: () => jsonError("unauthorized", 401),
+          SlotUnavailable: () => jsonError("slot_unavailable", 422),
           SchemaError: () => jsonError("invalid_request", 400),
           BookingNotStored: () => jsonError("booking_store_failed", 500),
           SqlError: () => jsonError("booking_store_failed", 500),

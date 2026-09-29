@@ -8,6 +8,7 @@
 //                                  "greyed out" means the button is disabled
 //   data-testid="selected-date"    shows the currently selected date
 //   data-testid="no-available-days" banner shown when every day in the displayed month is disabled
+//   data-testid="availability-error" banner shown when the available days cannot be loaded
 //   data-testid="timezone-select"  <select> whose option values are IANA zones
 //   data-testid="current-time"     text "Current time: HH:mm" (24h) in the selected zone
 //   data-testid="time-slot"        one <button> per time slot, text "HH:mm" (24h)
@@ -21,6 +22,7 @@
 //   role="alertdialog"             the confirm dialog, with "OK" and "Cancel" buttons
 //   data-testid="success-page"     root of the success page
 //
+// The UI loads the bookable days and slots from GET /api/availability on the same origin, and only offers those.
 // Clicking "OK" POSTs the booking to /api/booking-requests on the same origin as the UI.
 // GET /api/booking-requests?email= reads back what was stored; it requires "Authorization: Bearer $CCAL_API_KEY".
 // The API allows each client 10 requests every 60 seconds, keyed on CF-Connecting-IP. Locally the Worker trusts that header,
@@ -28,7 +30,7 @@
 
 import { test, expect, type Page, type Route, type TestInfo } from "@playwright/test";
 
-import type { BookingRequest, Contact } from "@ccal/shared";
+import type { Availability, BookingRequest, Contact } from "@ccal/shared";
 
 const API_KEY = process.env.CCAL_API_KEY!;
 
@@ -153,6 +155,22 @@ async function slotTimes(page: Page) {
   return (await timeSlots(page).allTextContents()).map(toMinutes);
 }
 
+// Serves `offered` as the availability, as if the server offered exactly those days.
+async function serveAvailability(page: Page, offered: Availability["days"]) {
+  await page.route("**/api/availability", (route) => route.fulfill({ json: { days: offered } satisfies Availability }));
+}
+
+// Every day from `first` through `last` ("YYYY-MM-DD"), each with one slot.
+function everyDay(first: string, last: string): Availability["days"] {
+  const result: Availability["days"] = [];
+  for (let date = first; date <= last; date = isoDate(addDays(new Date(`${date}T00:00:00`), 1))) {
+    result.push({ date, slots: [`${date}T17:30:00.000Z`] });
+  }
+  return result;
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+
 const RATE_LIMIT = 10;
 
 // A client id no other test or earlier run has used.
@@ -240,6 +258,7 @@ test.describe("Date select", () => {
   test('shows a "No available days this month" banner when every day is disabled', async ({ page }) => {
     // The earliest bookable day is October 1, so every September day is disabled.
     await page.clock.install({ time: new Date("2026-09-29T10:00:00") });
+    await serveAvailability(page, everyDay("2026-10-01", "2026-12-31"));
     await page.goto("/");
     await expect(monthLabelEl(page)).toHaveText("September 2026");
     await expect(enabledDays(page)).toHaveCount(0);
@@ -256,10 +275,29 @@ test.describe("Date select", () => {
   test('hides the "No available days this month" banner when some days are available', async ({ page }) => {
     // The earliest bookable day is October 3, so October still has available days.
     await page.clock.install({ time: new Date("2026-10-01T10:00:00") });
+    await serveAvailability(page, everyDay("2026-10-03", "2027-01-31"));
     await page.goto("/");
     await expect(monthLabelEl(page)).toHaveText("October 2026");
     await expect(enabledDays(page).first()).toBeVisible();
     await expect(noAvailableDays(page)).toBeHidden();
+  });
+
+  test("only offers the days the server says are available", async ({ page }) => {
+    const now = new Date();
+    const month = isoDate(new Date(now.getFullYear(), now.getMonth() + 1, 1)).slice(0, 8); // "YYYY-MM-"
+    const offered = [`${month}05`, `${month}20`];
+    await serveAvailability(page, everyDay(offered[0], offered[0]).concat(everyDay(offered[1], offered[1])));
+    await page.goto("/");
+    await page.getByTestId("next-month").click();
+    await expect(enabledDays(page)).toHaveCount(2);
+    expect(await enabledDays(page).evaluateAll((els) => els.map((el) => el.getAttribute("data-date")))).toEqual(offered);
+  });
+
+  test('shows a "Could not load available days" banner when the available days cannot be loaded', async ({ page }) => {
+    await page.route("**/api/availability", (route) => route.fulfill({ status: 500 }));
+    await page.goto("/");
+    await expect(page.getByTestId("availability-error")).toHaveText("Could not load available days");
+    await expect(enabledDays(page)).toHaveCount(0);
   });
 });
 
@@ -310,6 +348,16 @@ test.describe("Time select", () => {
     await expectCurrentTimeIn(page, PARIS);
     await timezoneSelect(page).selectOption(VANCOUVER);
     await expectCurrentTimeIn(page, VANCOUVER);
+  });
+
+  test("offers the time slots the server gives for the selected date", async ({ page }) => {
+    const date = isoDate(addDays(new Date(), 2));
+    const slots = [`${date}T14:00:00.000Z`, `${date}T21:45:00.000Z`];
+    await serveAvailability(page, [{ date, slots }]);
+    await page.goto("/");
+    await selectFirstAvailableDate(page);
+    await timezoneSelect(page).selectOption(PARIS);
+    await expect(timeSlots(page)).toHaveText(slots.map((slot) => inZone(slot, PARIS).time));
   });
 
   test("confirm button is disabled until a time slot is selected", async ({ page }) => {
@@ -499,6 +547,41 @@ test.describe("Confirmation page", () => {
     }
   });
 
+  test("the server's booking-request API rejects, and does not store, a booking that is not for an available time slot", async ({ request }) => {
+    const email = `ada+${test.info().testId}-${Date.now()}@example.com`;
+    const available: Availability = await (await request.get("/api/availability")).json();
+    const first = Date.parse(available.days[0].slots[0]);
+    const last = Date.parse(available.days.at(-1)!.slots[0]);
+    const unavailable = {
+      "a past date": first - 3 * DAY,
+      today: first - 2 * DAY,
+      tomorrow: first - DAY,
+      "more than 3 months out": last + DAY,
+      "a time that is not an offered slot": first + 60 * 1000,
+    };
+    for (const [what, instant] of Object.entries(unavailable)) {
+      const response = await request.post("/api/booking-requests", {
+        data: { ...contact, email, startsAt: new Date(instant).toISOString(), timeZone: MONTREAL } satisfies BookingRequest,
+      });
+      expect(response.status(), what).toBe(422);
+    }
+
+    const stored = await request.get("/api/booking-requests", { params: { email }, headers: { Authorization: `Bearer ${API_KEY}` } });
+    expect(await stored.json()).toEqual([]);
+  });
+
+  test("the server's booking-request API rejects, and does not store, a booking with a time zone the UI does not offer", async ({ request }) => {
+    const email = `ada+${test.info().testId}-${Date.now()}@example.com`;
+    const available: Availability = await (await request.get("/api/availability")).json();
+    const response = await request.post("/api/booking-requests", {
+      data: { ...contact, email, startsAt: available.days[0].slots[0], timeZone: "Mars/Olympus_Mons" } satisfies BookingRequest,
+    });
+    expect(response.status()).toBe(400);
+
+    const stored = await request.get("/api/booking-requests", { params: { email }, headers: { Authorization: `Bearer ${API_KEY}` } });
+    expect(await stored.json()).toEqual([]);
+  });
+
   test("when the booking request fails, the dialog shows an error and the page stays on the confirmation page", async ({ page }) => {
     await goToConfirmation(page);
     await fillContact(page);
@@ -543,19 +626,21 @@ test.describe("Success page", () => {
 });
 
 test.describe("Rate limiting", () => {
-  test("a client gets 10 API requests every 60 seconds, then 429 Too Many Requests", async ({ request }) => {
+  test("a client gets 10 API requests every 60 seconds, then 429 Too Many Requests", async ({ request }, testInfo) => {
+    // The page loaded before each test has already spent some of this test's budget, so count from a fresh client.
+    const headers = { "CF-Connecting-IP": newClient(testInfo) };
     // Any route and outcome counts: unauthorized listings, bookings and unknown routes alike.
     const calls = [
-      () => request.get("/api/booking-requests"),
-      () => request.post("/api/booking-requests", { data: { ...contact, startsAt: "2026-10-01T17:30:00.000Z", timeZone: MONTREAL } }),
-      () => request.get("/api/nope"),
+      () => request.get("/api/booking-requests", { headers }),
+      () => request.post("/api/booking-requests", { headers, data: { ...contact, startsAt: "2026-10-01T17:30:00.000Z", timeZone: MONTREAL } }),
+      () => request.get("/api/nope", { headers }),
     ];
     for (let i = 0; i < RATE_LIMIT; i++) {
       const response = await calls[i % calls.length]();
       expect(response.status(), `request ${i + 1}`).not.toBe(429);
     }
 
-    const limited = await request.get("/api/booking-requests", { headers: { Authorization: `Bearer ${API_KEY}` } });
+    const limited = await request.get("/api/booking-requests", { headers: { ...headers, Authorization: `Bearer ${API_KEY}` } });
     expect(limited.status()).toBe(429);
     expect(limited.headers()["retry-after"]).toBe("60");
   });
