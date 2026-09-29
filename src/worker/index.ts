@@ -1,5 +1,5 @@
 import * as Cloudflare from "alchemy/Cloudflare"
-import { Config, Effect } from "effect"
+import { Config, Effect, Option } from "effect"
 
 import { makeWorker } from "./make-worker"
 
@@ -29,6 +29,9 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
       },
       // `alchemy dev` serves the Worker here. Strict, so callers such as Playwright can rely on the port.
       dev: { port: yield* Config.Int("DEV_PORT").pipe(Config.withDefault(1337)), strictPort: true },
+      // The host of `ccal config --set-url`, provided by alchemy.run.ts. Unset (as inside the running Worker),
+      // custom domains are left alone. `alchemy dev` ignores it.
+      domain: Option.getOrUndefined(yield* Config.option(Config.String("CCAL_DOMAIN"))),
       env: {
         // Required to read bookings (GET /api/booking-requests). Set it in .env or the environment.
         CCAL_API_KEY: Config.Redacted("CCAL_API_KEY"),

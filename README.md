@@ -4,6 +4,7 @@ Assume .env.example var are in shell env
 
 ccal login, to login with google 
 ccal meet create --email=test@example.com, create a meeting link for that person and send the email. 
+ccal config, print the saved config; ccal config --set-url=https://cal.example.com, save the URL the Worker is deployed to (in `~/.config/ccal/config.json`). `bun run deploy` attaches its host to the Worker as a custom domain (the zone must be in your Cloudflare account; a `workers.dev` URL is left as is).
 
 ## Setup
 
@@ -15,7 +16,7 @@ ccal meet create --email=test@example.com, create a meeting link for that person
    `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
 4. `bun install && bun link` to put `ccal` on your PATH, then `ccal login`.
 
-The login token is stored in `~/.config/ccal/token.json`.
+The login token is stored in `~/.config/ccal/token.json`. The CLI (`src/cli/`) is written with Effect.
 
 ## Options for `ccal meet create`
 
