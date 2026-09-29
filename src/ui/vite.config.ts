@@ -12,10 +12,4 @@ export default defineConfig({
       "@": fileURLToPath(new URL("src", import.meta.url)),
     },
   },
-  server: {
-    port: 3000,
-    strictPort: true,
-    // The booking API is the local Worker: `bun dev` (alchemy dev) starts both and sets API_URL to its URL.
-    proxy: process.env.API_URL ? { "/api": process.env.API_URL } : undefined,
-  },
 })

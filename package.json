@@ -11,7 +11,7 @@
     "ccal": "src/cli.ts"
   },
   "scripts": {
-    "dev": "alchemy dev",
+    "dev": "bun run build && alchemy dev",
     "build": "bun --filter ui build",
     "test:e2e": "playwright test",
     "lint": "oxlint --deny-warnings",
