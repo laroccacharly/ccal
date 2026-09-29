@@ -1,4 +1,3 @@
-import { ALCHEMY_PHASE } from "alchemy"
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Config, Effect } from "effect"
 
@@ -12,30 +11,22 @@ export const Database = Cloudflare.D1.Database("Database", {
   migrations: "migrations",
 })
 
-const CCAL_WORKER = {
-  name: "ccal",
-  main: import.meta.url,
-  compatibility: {
-    date: "2026-09-01",
-    flags: ["nodejs_compat" as const],
-  },
-  // The UI, built by `bun run build`. The Worker only runs for /api/*; every other path is the single-page app.
-  assets: {
-    directory: "src/ui/dist",
-    notFoundHandling: "single-page-application" as const,
-    runWorkerFirst: ["/api/*"],
-  },
-}
-
 export default class Worker extends Cloudflare.Worker<Worker>()(
   "Worker",
   Effect.gen(function* workerProps() {
-    const phase = yield* ALCHEMY_PHASE
-    if (phase === "runtime") {
-      return CCAL_WORKER
-    }
     return {
-      ...CCAL_WORKER,
+      name: "ccal",
+      main: import.meta.url,
+      compatibility: {
+        date: "2026-09-01",
+        flags: ["nodejs_compat" as const],
+      },
+      // The UI, built by `bun run build`. The Worker only runs for /api/*; every other path is the single-page app.
+      assets: {
+        directory: "src/ui/dist",
+        notFoundHandling: "single-page-application" as const,
+        runWorkerFirst: ["/api/*"],
+      },
       // `alchemy dev` serves the Worker here. Strict, so callers such as Playwright can rely on the port.
       dev: { port: yield* Config.Int("DEV_PORT").pipe(Config.withDefault(1337)), strictPort: true },
       env: {
