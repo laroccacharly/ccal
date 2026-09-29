@@ -28,7 +28,7 @@ const MeetingInfo = () => (
 )
 
 const Calendar = ({ selected, onSelect }: { selected: string | null; onSelect: (date: string) => void }) => {
-  const today = new Date()
+  const [today] = useState(() => new Date())
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() })
   const monthsAhead = (view.year - today.getFullYear()) * 12 + view.month - today.getMonth()
   const firstBookable = firstBookableDate(today)
@@ -128,7 +128,8 @@ const CurrentTime = ({ timeZone }: { timeZone: string }) => {
 const TimePicker = ({ date, onConfirm }: { date: string | null; onConfirm: (booking: Booking) => void }) => {
   const [timeZone, setTimeZone] = useState(HOST_TIME_ZONE)
   const [selected, setSelected] = useState<number | null>(null)
-  const slots = slotsFor(date ?? isoDate(new Date()), timeZone)
+  const [today] = useState(() => isoDate(new Date()))
+  const slots = slotsFor(date ?? today, timeZone)
   const slot = date ? slots.find((s) => s.instant === selected) : undefined
 
   return (

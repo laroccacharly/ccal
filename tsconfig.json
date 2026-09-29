@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/shared", "src/cli.ts", "src/test-server", "src/e2e", "playwright.config.ts"]
+  "include": ["src/shared", "src/cli.ts", "src/test-server", "src/e2e", "playwright.config.ts", "oxlint.config.ts"]
 }
