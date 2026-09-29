@@ -17,7 +17,7 @@ const Panel = ({ className, ...props }: React.ComponentProps<"section">) => (
 
 const MeetingInfo = () => (
   <Panel className="flex flex-col gap-4 md:w-56">
-    <h1 className="text-xl font-semibold">30 Minute Meeting</h1>
+    <h1 className="text-xl font-semibold">Book a Meeting</h1>
     <p className="flex items-center gap-2 text-muted-foreground">
       <HugeiconsIcon icon={Clock01Icon} className="size-4" /> 30 min
     </p>
