@@ -1,11 +1,12 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog"
+import type { Contact } from "@ccal/shared"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { postBookingRequest } from "@/lib/api"
 import { formatSelectedDate } from "@/lib/dates"
 import { timeZoneLabel } from "@/lib/slots"
-import { validateContact, type Contact, type ContactErrors } from "@/lib/validation"
+import { validateContact, type ContactErrors } from "@/lib/validation"
 import type { Booking } from "@/pages/booking-page"
 
 const fieldClass = "rounded-2xl border bg-background px-3 py-2 text-sm aria-invalid:border-destructive"

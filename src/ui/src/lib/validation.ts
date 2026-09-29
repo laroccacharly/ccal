@@ -1,4 +1,5 @@
-export type Contact = { name: string; email: string; description: string }
+import type { Contact } from "@ccal/shared"
+
 export type ContactErrors = Partial<Record<keyof Contact, string>>
 
 // Characters that could be used to inject markup or scripts.

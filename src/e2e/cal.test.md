@@ -46,7 +46,7 @@
 - Assert the dialog shows the date and time, with "OK" and "Cancel" buttons
 - Assert clicking "Cancel" closes the dialog
 - Assert clicking "OK" navigates to the success page
-- Assert the server's booking-request API returns exactly one booking with the entered data
+- Assert the server's booking-request API returns exactly one booking with the entered data; the selected date and time are stored as a single ISO datetime (`startsAt`) alongside the time zone
 - Assert that when the booking request fails, the dialog shows an error and the page stays on the confirmation page
 
 # Success page

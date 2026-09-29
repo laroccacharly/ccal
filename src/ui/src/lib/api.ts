@@ -1,4 +1,5 @@
-import type { Contact } from "@/lib/validation"
+import type { BookingRequest, Contact } from "@ccal/shared"
+
 import type { Booking } from "@/pages/booking-page"
 
 const API_URL = import.meta.env.VITE_API_URL
@@ -9,12 +10,10 @@ export async function postBookingRequest(booking: Booking, contact: Contact) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      date: booking.date,
-      time: booking.slot.label,
-      timeZone: booking.timeZone,
       startsAt: new Date(booking.slot.instant).toISOString(),
+      timeZone: booking.timeZone,
       ...contact,
-    }),
+    } satisfies BookingRequest),
   })
   if (!response.ok) throw new Error(`Booking request failed (${response.status})`)
 }

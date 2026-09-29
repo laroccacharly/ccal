@@ -4,27 +4,25 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const PORT = Number(process.env.PORT ?? 3101);
-const FIELDS = ["date", "time", "timeZone", "startsAt", "name", "email", "description"] as const;
+import type { BookingRequest } from "@ccal/shared";
 
-type BookingRequest = Record<(typeof FIELDS)[number], string>;
+const PORT = Number(process.env.PORT ?? 3101);
+const FIELDS = ["startsAt", "timeZone", "name", "email", "description"] as const satisfies readonly (keyof BookingRequest)[];
 
 const dir = mkdtempSync(join(tmpdir(), "ccal-test-server-"));
 const db = new Database(join(dir, "bookings.sqlite"));
 db.run(`CREATE TABLE booking_requests (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  date TEXT NOT NULL,
-  time TEXT NOT NULL,
-  timeZone TEXT NOT NULL,
   startsAt TEXT NOT NULL,
+  timeZone TEXT NOT NULL,
   name TEXT NOT NULL,
   email TEXT NOT NULL,
   description TEXT NOT NULL
 )`);
 
 const insert = db.query(
-  `INSERT INTO booking_requests (date, time, timeZone, startsAt, name, email, description)
-   VALUES ($date, $time, $timeZone, $startsAt, $name, $email, $description) RETURNING *`,
+  `INSERT INTO booking_requests (startsAt, timeZone, name, email, description)
+   VALUES ($startsAt, $timeZone, $name, $email, $description) RETURNING *`,
 );
 const all = db.query("SELECT * FROM booking_requests ORDER BY id");
 const byEmail = db.query("SELECT * FROM booking_requests WHERE email = $email ORDER BY id");

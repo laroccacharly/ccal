@@ -26,6 +26,8 @@
 
 import { test, expect, type Page, type Route } from "@playwright/test";
 
+import type { BookingRequest, Contact } from "@ccal/shared";
+
 const API_URL = process.env.API_URL!;
 
 const MONTREAL = "America/Toronto"; // IANA has no Montreal zone; it uses Toronto's
@@ -60,6 +62,15 @@ function parisMinusVancouverMinutes(day: string) {
     return match[1] === "-" ? -minutes : minutes;
   };
   return offset(PARIS) - offset(VANCOUVER);
+}
+
+// Date ("YYYY-MM-DD") and 24h time ("HH:mm") of an ISO datetime, as seen in `timeZone`.
+function inZone(iso: string, timeZone: string) {
+  const at = new Date(iso);
+  return {
+    date: new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(at),
+    time: new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at),
+  };
 }
 
 // Current wall-clock time in `timeZone`, in minutes since midnight.
@@ -124,9 +135,9 @@ function formatSelectedDate(date: string) {
   return `${monthName} ${dayOfMonth} ${year}`;
 }
 
-const contact = { name: "Ada Lovelace", email: "ada@example.com", description: "Talk about the Analytical Engine" };
+const contact: Contact = { name: "Ada Lovelace", email: "ada@example.com", description: "Talk about the Analytical Engine" };
 
-async function fillContact(page: Page, values: Partial<typeof contact> = {}) {
+async function fillContact(page: Page, values: Partial<Contact> = {}) {
   const { name, email, description } = { ...contact, ...values };
   await page.getByLabel("Name").fill(name);
   await page.getByLabel("Email").fill(email);
@@ -450,16 +461,15 @@ test.describe("Confirmation page", () => {
 
     const response = await request.get(`${API_URL}/api/booking-requests`, { params: { email } });
     expect(response.ok()).toBe(true);
-    const bookings = await response.json();
+    const bookings: BookingRequest[] = await response.json();
     expect(bookings).toHaveLength(1);
     expect(bookings[0]).toMatchObject({
-      date,
-      time,
       timeZone,
       name: contact.name,
       email,
       description: contact.description,
     });
+    expect(inZone(bookings[0].startsAt, timeZone)).toEqual({ date, time });
   });
 
   test("when the booking request fails, the dialog shows an error and the page stays on the confirmation page", async ({ page }) => {

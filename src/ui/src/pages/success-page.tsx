@@ -1,6 +1,7 @@
+import type { Contact } from "@ccal/shared"
+
 import { formatSelectedDate } from "@/lib/dates"
 import { timeZoneLabel } from "@/lib/slots"
-import type { Contact } from "@/lib/validation"
 import type { Booking } from "@/pages/booking-page"
 
 export type ConfirmedBooking = Booking & Contact

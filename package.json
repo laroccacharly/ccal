@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "src/ui"
+    "src/ui",
+    "src/shared"
   ],
   "bin": {
     "ccal": "src/cli.ts"
@@ -14,6 +15,9 @@
     "build": "bun --filter ui build",
     "test:e2e": "playwright test",
     "test-server": "bun src/test-server/server.ts"
+  },
+  "dependencies": {
+    "@ccal/shared": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
