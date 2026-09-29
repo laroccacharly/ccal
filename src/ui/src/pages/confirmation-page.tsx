@@ -2,6 +2,7 @@ import { AlertDialog } from "@base-ui/react/alert-dialog"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { postBookingRequest } from "@/lib/api"
 import { formatSelectedDate } from "@/lib/dates"
 import { timeZoneLabel } from "@/lib/slots"
 import { validateContact, type Contact, type ContactErrors } from "@/lib/validation"
@@ -37,6 +38,8 @@ export const ConfirmationPage = ({ booking, onConfirm }: { booking: Booking; onC
   const [contact, setContact] = useState<Contact>({ name: "", email: "", description: "" })
   const [errors, setErrors] = useState<ContactErrors>({})
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const date = formatSelectedDate(booking.date)
   const time = booking.slot.label
   const filled = Object.values(contact).every((value) => value !== "")
@@ -49,6 +52,18 @@ export const ConfirmationPage = ({ booking, onConfirm }: { booking: Booking; onC
     const found = validateContact(contact)
     setErrors(found)
     if (Object.keys(found).length === 0) setDialogOpen(true)
+  }
+
+  const send = async () => {
+    setSending(true)
+    setSendError(null)
+    try {
+      await postBookingRequest(booking, contact)
+      onConfirm(contact)
+    } catch {
+      setSendError("We couldn't send your booking request. Please try again.")
+      setSending(false)
+    }
   }
 
   return (
@@ -103,9 +118,16 @@ export const ConfirmationPage = ({ booking, onConfirm }: { booking: Booking; onC
             <AlertDialog.Description>
               {date} at {time}
             </AlertDialog.Description>
+            {sendError && (
+              <p data-testid="booking-error" className="text-sm text-destructive">
+                {sendError}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <AlertDialog.Close render={<Button variant="outline" />}>Cancel</AlertDialog.Close>
-              <Button onClick={() => onConfirm(contact)}>OK</Button>
+              <Button disabled={sending} onClick={send}>
+                OK
+              </Button>
             </div>
           </AlertDialog.Popup>
         </AlertDialog.Portal>

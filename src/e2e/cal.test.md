@@ -44,6 +44,7 @@
 - Assert the dialog shows the date and time, with "OK" and "Cancel" buttons
 - Assert clicking "Cancel" closes the dialog
 - Assert clicking "OK" navigates to the success page
+- Assert the server's booking-request API returns exactly one booking with the entered data
 
 # Success page
 - Assert url contains "success"

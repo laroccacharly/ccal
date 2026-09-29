@@ -12,7 +12,8 @@
   "scripts": {
     "dev": "bun --filter ui dev",
     "build": "bun --filter ui build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test-server": "bun src/test-server/server.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

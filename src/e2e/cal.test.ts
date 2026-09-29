@@ -19,8 +19,13 @@
 //   data-testid="submit-button"    the confirmation page's "Confirm" button
 //   role="alertdialog"             the confirm dialog, with "OK" and "Cancel" buttons
 //   data-testid="success-page"     root of the success page
+//
+// Clicking "OK" POSTs the booking to $VITE_API_URL/api/booking-requests. Playwright points the UI at the
+// fake API in src/test-server; GET /api/booking-requests?email= reads back what was stored.
 
 import { test, expect, type Page } from "@playwright/test";
+
+const API_URL = process.env.API_URL!;
 
 const MONTREAL = "America/Toronto"; // IANA has no Montreal zone; it uses Toronto's
 const PARIS = "Europe/Paris";
@@ -107,7 +112,7 @@ async function goToConfirmation(page: Page, timeZone = MONTREAL) {
   await slot.click();
   await confirmButton(page).click();
   await expect(page.getByTestId("confirmation-page")).toBeVisible();
-  return { date: formatSelectedDate(date), time };
+  return { isoDate: date, date: formatSelectedDate(date), time, timeZone };
 }
 
 // "October 1 2026", from "2026-10-01"
@@ -405,6 +410,29 @@ test.describe("Confirmation page", () => {
     await submitButton(page).click();
     await confirmDialog(page).getByRole("button", { name: "OK" }).click();
     await expect(page.getByTestId("success-page")).toBeVisible();
+  });
+
+  test("the server's booking-request API returns exactly one booking with the entered data", async ({ page, request }) => {
+    // Tests share one server, so a unique email identifies this test's booking.
+    const email = `ada+${test.info().testId}-${Date.now()}@example.com`;
+    const { isoDate: date, time, timeZone } = await goToConfirmation(page, PARIS);
+    await fillContact(page, { email });
+    await submitButton(page).click();
+    await confirmDialog(page).getByRole("button", { name: "OK" }).click();
+    await expect(page.getByTestId("success-page")).toBeVisible();
+
+    const response = await request.get(`${API_URL}/api/booking-requests`, { params: { email } });
+    expect(response.ok()).toBe(true);
+    const bookings = await response.json();
+    expect(bookings).toHaveLength(1);
+    expect(bookings[0]).toMatchObject({
+      date,
+      time,
+      timeZone,
+      name: contact.name,
+      email,
+      description: contact.description,
+    });
   });
 });
 
