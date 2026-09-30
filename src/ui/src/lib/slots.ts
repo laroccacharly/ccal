@@ -1,4 +1,4 @@
-export { HOST_TIME_ZONE, TIME_ZONES, timeZoneLabel } from "@ccal/shared/availability"
+export { HOST_TIME_ZONE, MEETING_MINUTES, TIME_ZONES, timeZoneLabel } from "@ccal/shared/availability"
 
 // A bookable slot from the server (`startsAt`, an ISO datetime), labelled "HH:mm" in the visitor's chosen zone.
 export type Slot = { startsAt: string; label: string }

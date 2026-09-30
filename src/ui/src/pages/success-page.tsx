@@ -18,5 +18,8 @@ export const SuccessPage = ({ booking }: { booking: ConfirmedBooking }) => (
     <p data-testid="success-description" className="whitespace-pre-wrap text-muted-foreground">
       {booking.description}
     </p>
+    <p data-testid="success-meeting-link-message" className="text-sm text-muted-foreground">
+      Check your inbox: an email with the Google Meet link is on its way to {booking.email}.
+    </p>
   </section>
 )

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/components/ui/lib/utils"
 import { getAvailability } from "@/lib/api"
 import { formatSelectedDate, fromIsoDate, isoDate, monthLabel } from "@/lib/dates"
-import { HOST_TIME_ZONE, TIME_ZONES, slotsIn, type Slot } from "@/lib/slots"
+import { HOST_TIME_ZONE, MEETING_MINUTES, TIME_ZONES, slotsIn, type Slot } from "@/lib/slots"
 
 export type Booking = { date: string; slot: Slot; timeZone: string }
 
@@ -24,7 +24,7 @@ const MeetingInfo = () => (
   <Panel className="flex flex-col gap-4 md:w-56">
     <h1 className="text-xl font-semibold">Book a Meeting</h1>
     <p className="flex items-center gap-2 text-muted-foreground">
-      <HugeiconsIcon icon={Clock01Icon} className="size-4" /> 30 min
+      <HugeiconsIcon icon={Clock01Icon} className="size-4" /> {MEETING_MINUTES} min
     </p>
     <p className="flex items-center gap-2 text-muted-foreground">
       <HugeiconsIcon icon={Video01Icon} className="size-4" /> Google Meet

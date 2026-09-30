@@ -1,7 +1,8 @@
+import { createMeeting } from "@ccal/shared/google"
 import { Console, Effect, Option, Schema } from "effect"
 import { Command, Flag } from "effect/unstable/cli"
 
-import { createMeeting } from "../google"
+import { accessToken } from "../../local/google-login"
 
 export class InvalidMeeting extends Schema.TaggedError<InvalidMeeting>()("InvalidMeeting", { detail: Schema.String }) {
   override get message(): string {
@@ -31,7 +32,7 @@ const create = Command.make(
     if (duration <= 0) return yield* new InvalidMeeting({ detail: `Invalid --duration: ${duration}` })
     const end = new Date(start.getTime() + duration * 60_000)
 
-    const event = yield* createMeeting({ title, start, end, emails: email })
+    const event = yield* createMeeting(yield* accessToken, { title, start, end, emails: email })
     yield* Console.log(event.hangoutLink ?? "(no Meet link was returned)")
     yield* Console.error(`Invite sent to ${email.join(", ")} for ${start.toLocaleString()}.`)
   }),

@@ -15,22 +15,28 @@
 //   data-testid="confirm-button"   the "ok" button
 //   data-testid="confirmation-page" root of the confirmation page
 //   data-testid="summary"          the booking summary: date, time and time zone
-//   data-testid="meeting-link-message" note that the meeting link is sent once we confirm
+//   data-testid="meeting-link-message" note that an email with the Meet link follows shortly after confirming
 //   labels "Name", "Email", "Description" the contact form fields
 //   data-testid="name-error" / "email-error" / "description-error" validation messages
 //   data-testid="submit-button"    the confirmation page's "Confirm" button
 //   role="alertdialog"             the confirm dialog, with "OK" and "Cancel" buttons
 //   data-testid="success-page"     root of the success page
+//   data-testid="success-meeting-link-message" note to check the inbox for the Meet link
 //
 // The UI loads the bookable days and slots from GET /api/availability on the same origin, and only offers those.
 // Clicking "OK" POSTs the booking to /api/booking-requests on the same origin as the UI.
 // GET /api/booking-requests?email= reads back what was stored; it requires "Authorization: Bearer $CCAL_API_KEY".
+// GET /api/booking-requests also returns each booking's Google Meet (`meeting`), which the Worker creates in the background.
+// The Worker reaches "Google" at GOOGLE_API_ORIGIN, a stub (google-stub.ts) whose /stub/* routes list the events it
+// created and make it fail for an attendee. POST /api/meetings/retry (with the API key) retries unfinished meetings now.
 // The API allows each client 10 requests every 60 seconds, keyed on CF-Connecting-IP. Locally the Worker trusts that header,
 // so each test sends its own to act as a separate client.
 
-import { test, expect, type Page, type Route, type TestInfo } from "@playwright/test";
+import { test, expect, type APIRequestContext, type Page, type Route, type TestInfo } from "@playwright/test";
 
-import type { Availability, BookingRequest, Contact } from "@ccal/shared";
+import type { Availability, BookingRequest, Contact, Meeting } from "@ccal/shared";
+
+import type { StubEvent } from "./google-stub";
 
 const API_KEY = process.env.CCAL_API_KEY!;
 
@@ -390,9 +396,9 @@ test.describe("Confirmation page", () => {
     await expect(summary).toContainText("Paris, France");
   });
 
-  test("explains that the meeting link is sent once we confirm", async ({ page }) => {
+  test("explains that an email with the Google Meet link follows shortly after confirming", async ({ page }) => {
     await goToConfirmation(page);
-    await expect(page.getByTestId("meeting-link-message")).toContainText(/meeting link will be sent.*confirm/i);
+    await expect(page.getByTestId("meeting-link-message")).toContainText(/once you confirm.*shortly receive an email with the Google Meet link/i);
   });
 
   test("has Name, Email and Description fields", async ({ page }) => {
@@ -622,6 +628,132 @@ test.describe("Success page", () => {
     const { date, time } = await goToSuccess(page);
     const success = page.getByTestId("success-page");
     for (const text of [date, time, contact.name, contact.email, contact.description]) await expect(success).toContainText(text);
+  });
+
+  test("tells them to check their inbox for the Google Meet link", async ({ page }) => {
+    await goToSuccess(page);
+    const message = page.getByTestId("success-meeting-link-message");
+    await expect(message).toContainText(/check your inbox.*Google Meet link/i);
+    await expect(message).toContainText(contact.email);
+  });
+});
+
+test.describe("Google Meet", () => {
+  test.skip(!!process.env.BASE_URL, "needs the Google stub, which only runs with the local server");
+
+  const GOOGLE = process.env.GOOGLE_API_ORIGIN!;
+  type StoredBooking = BookingRequest & { id: number; meeting: Meeting | null };
+
+  const uniqueEmail = () => `ada+${test.info().testId}-${Date.now()}@example.com`;
+
+  // Books the first available slot over the API, as the UI does, and returns the booking.
+  async function book(request: APIRequestContext, email: string) {
+    const available: Availability = await (await request.get("/api/availability")).json();
+    const response = await request.post("/api/booking-requests", {
+      data: { ...contact, email, startsAt: available.days[0].slots[0], timeZone: MONTREAL } satisfies BookingRequest,
+    });
+    expect(response.status()).toBe(201);
+    return (await response.json()) as StoredBooking;
+  }
+
+  // Reads back the stored booking. Each read is its own client, so polling never runs into the rate limit.
+  async function storedBooking(request: APIRequestContext, email: string) {
+    const response = await request.get("/api/booking-requests", {
+      params: { email },
+      headers: { Authorization: `Bearer ${API_KEY}`, "CF-Connecting-IP": newClient(test.info()) },
+    });
+    const bookings: StoredBooking[] = await response.json();
+    expect(bookings).toHaveLength(1);
+    return bookings[0];
+  }
+
+  // The meeting once its creation has been attempted, which happens after the booking response.
+  async function settledMeeting(request: APIRequestContext, email: string, status: Meeting["status"]) {
+    await expect.poll(async () => (await storedBooking(request, email)).meeting?.status).toBe(status);
+    return (await storedBooking(request, email)).meeting!;
+  }
+
+  const googleEvents = async (request: APIRequestContext, email: string): Promise<StubEvent[]> =>
+    (await request.get(`${GOOGLE}/stub/events`, { params: { attendee: email } })).json();
+
+  async function googleOutage(request: APIRequestContext, email: string, down: boolean) {
+    const outage = `${GOOGLE}/stub/outages/${encodeURIComponent(email)}`;
+    expect((await (down ? request.put(outage) : request.delete(outage))).ok()).toBe(true);
+  }
+
+  const retryMeetings = async (request: APIRequestContext) =>
+    expect((await request.post("/api/meetings/retry", { headers: { Authorization: `Bearer ${API_KEY}` } })).ok()).toBe(true);
+
+  test("a booking gets a 30-minute Google Meet at the booked time, inviting the booker", async ({ request }) => {
+    const email = uniqueEmail();
+    const booking = await book(request, email);
+    await settledMeeting(request, email, "created");
+
+    const events = await googleEvents(request, email);
+    expect(events).toHaveLength(1);
+    const [event] = events;
+    expect(event.query).toMatchObject({ sendUpdates: "all", conferenceDataVersion: "1" });
+    expect(event.body).toMatchObject({
+      summary: `Meeting with ${contact.name}`,
+      description: contact.description,
+      attendees: [{ email }],
+      conferenceData: { createRequest: { conferenceSolutionKey: { type: "hangoutsMeet" } } },
+    });
+    const { start, end } = event.body as { start: { dateTime: string }; end: { dateTime: string } };
+    expect(Date.parse(start.dateTime)).toBe(Date.parse(booking.startsAt));
+    expect(Date.parse(end.dateTime) - Date.parse(start.dateTime)).toBe(30 * 60 * 1000);
+  });
+
+  test("the booking-request API shows the meeting as created, with its Meet link", async ({ request }) => {
+    const email = uniqueEmail();
+    await book(request, email);
+    const meeting = await settledMeeting(request, email, "created");
+    const [event] = await googleEvents(request, email);
+    expect(meeting).toMatchObject({ status: "created", meetLink: event.hangoutLink, attempts: 1, lastError: null });
+  });
+
+  test("when Google fails, the booking is still stored and its meeting shows as failed", async ({ request }) => {
+    const email = uniqueEmail();
+    await googleOutage(request, email, true);
+    await book(request, email);
+    const meeting = await settledMeeting(request, email, "failed");
+    expect(meeting).toMatchObject({ status: "failed", meetLink: null, attempts: 1 });
+    expect(meeting.lastError).toContain("503");
+    expect(await storedBooking(request, email)).toMatchObject({ ...contact, email });
+    expect(await googleEvents(request, email)).toEqual([]);
+  });
+
+  test("the meeting-retry API creates a failed meeting once Google works again", async ({ request }) => {
+    const email = uniqueEmail();
+    await googleOutage(request, email, true);
+    await book(request, email);
+    await settledMeeting(request, email, "failed");
+
+    await googleOutage(request, email, false);
+    await retryMeetings(request);
+    const meeting = await settledMeeting(request, email, "created");
+    const events = await googleEvents(request, email);
+    expect(events).toHaveLength(1);
+    expect(meeting).toMatchObject({ meetLink: events[0].hangoutLink, attempts: 2, lastError: null });
+  });
+
+  test("the meeting-retry API leaves a created meeting alone", async ({ request }) => {
+    const email = uniqueEmail();
+    await book(request, email);
+    const before = await settledMeeting(request, email, "created");
+
+    await retryMeetings(request);
+    expect(await googleEvents(request, email)).toHaveLength(1);
+    expect((await storedBooking(request, email)).meeting).toEqual(before);
+  });
+
+  test("the meeting-retry API rejects calls without a valid API key", async ({ request }) => {
+    // No key, a wrong key, and the right key without the "Bearer " scheme.
+    const attempts: Record<string, string>[] = [{}, { Authorization: "Bearer wrong-key" }, { Authorization: API_KEY }];
+    for (const headers of attempts) {
+      const response = await request.post("/api/meetings/retry", { headers });
+      expect(response.status()).toBe(401);
+    }
   });
 });
 

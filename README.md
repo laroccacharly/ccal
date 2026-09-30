@@ -1,6 +1,6 @@
 # ccal
 
-A small booking app. Visitors pick a time slot on a web page and send a booking request. The `ccal` CLI creates the Google Meet invite. The page and its API run as a single Cloudflare Worker.
+A small booking app. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The `ccal` CLI can also create invites directly. The page and its API run as a single Cloudflare Worker.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ A small booking app. Visitors pick a time slot on a web page and send a booking 
    - Google OAuth client: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
    - Cloudflare: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`
    - A random `CCAL_API_KEY`, e.g. from `openssl rand -hex 32`
-5. `bun install && bun link` puts `ccal` on your PATH. Then run `ccal login`.
+5. `bun install && bun link` puts `ccal` on your PATH. Then run `ccal login`: the deployed app sends invites from that Google account.
 
 ## Usage
 

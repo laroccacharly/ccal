@@ -1,7 +1,8 @@
+import { AUTH_URL, clientCredentials, GoogleError, requestToken, SCOPES } from "@ccal/shared/google"
 import { Console, Deferred, Effect } from "effect"
 import { Command } from "effect/unstable/cli"
 
-import { AUTH_URL, clientCredentials, GoogleError, requestToken, saveToken, SCOPES, tokenFromResponse } from "../google"
+import { googleLoginFromResponse, saveGoogleLogin } from "../../local/google-login"
 
 const emailFromIdToken = (idToken?: string): string | undefined =>
   idToken ? JSON.parse(Buffer.from(idToken.split(".")[1], "base64url").toString()).email : undefined
@@ -73,7 +74,7 @@ export const loginCommand = Command.make("login", {}, () =>
       return yield* new GoogleError({ detail: "Google did not return a refresh token; try `ccal login` again." })
     }
     const email = emailFromIdToken(body.id_token)
-    yield* saveToken(tokenFromResponse(body, email))
+    yield* saveGoogleLogin(googleLoginFromResponse(body, email))
     yield* Console.log(`Logged in${email ? ` as ${email}` : ""}.`)
   }),
 ).pipe(Command.withDescription("Log in with Google"))

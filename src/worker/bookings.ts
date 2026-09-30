@@ -1,4 +1,4 @@
-import type { BookingRequest } from "@ccal/shared"
+import type { BookingRequest, Meeting } from "@ccal/shared"
 import { Effect, Schema } from "effect"
 import { SqlClient } from "effect/unstable/sql/SqlClient"
 
@@ -22,9 +22,30 @@ export const insertBookingRequest = Effect.fn("insertBookingRequest")(function* 
   return row
 })
 
+type ListedRow = BookingRow & {
+  meetingStatus: Meeting["status"] | null
+  meetLink: string | null
+  attempts: number | null
+  lastError: string | null
+  updatedAt: string | null
+}
+
+// Each booking with its meeting; null for bookings stored before meetings were created.
+const withMeeting = ({ meetingStatus, meetLink, attempts, lastError, updatedAt, ...booking }: ListedRow) => ({
+  ...booking,
+  meeting:
+    meetingStatus === null
+      ? null
+      : ({ status: meetingStatus, meetLink, attempts: attempts ?? 0, lastError, updatedAt: updatedAt ?? "" } satisfies Meeting),
+})
+
 export const listBookingRequests = Effect.fn("listBookingRequests")(function* listBookingRequests(email?: string) {
   const sql = yield* SqlClient
-  return email === undefined
-    ? yield* sql<BookingRow>`SELECT * FROM booking_requests ORDER BY id`
-    : yield* sql<BookingRow>`SELECT * FROM booking_requests WHERE email = ${email} ORDER BY id`
+  const rows = yield* sql<ListedRow>`
+    SELECT b.*, m.status AS meetingStatus, m.meetLink, m.attempts, m.lastError, m.updatedAt
+    FROM booking_requests b LEFT JOIN meetings m ON m.bookingRequestId = b.id
+    ${email === undefined ? sql`` : sql`WHERE b.email = ${email}`}
+    ORDER BY b.id
+  `
+  return rows.map(withMeeting)
 })

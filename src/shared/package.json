@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./types.ts",
-    "./availability": "./availability.ts"
+    "./availability": "./availability.ts",
+    "./google": "./google.ts"
   }
 }

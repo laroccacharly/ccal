@@ -37,7 +37,7 @@
 # Confirmation page
 - Assert url contains "confirm"
 - Assert the page shows the selected date, time and time zone
-- Assert the page shows a message explaining that the meeting link will be sent once we confirm the booking on our end
+- Assert the page shows a message explaining that, once they confirm, they will shortly receive an email with the Google Meet link
 - Assert there is a form with Name, Email and Description fields
 - Assert clicking the confirm button runs the form validations
 - Assert the name is non-empty
@@ -58,6 +58,16 @@
 # Success page
 - Assert url contains "success"
 - Assert the page shows the selected date and time, and the entered name, email and description
+- Assert the page tells them to check their inbox: an email with the Google Meet link is on its way to the entered email
+
+# Google Meet
+- Assert that once a booking is accepted, a Google Meet is created for it: a 30-minute Google Calendar event at the booked time, titled "Meeting with <name>", described with the booker's description, inviting the booker, with Google emailing the invite
+- Assert the server's booking-request API, called with the API key, shows the booking's meeting as "created" with its Meet link
+- Assert that when Google fails to create the meeting, the booking is still accepted and stored, and the booking-request API shows its meeting as "failed", with the error and the number of attempts
+- Failed meetings are retried every 15 minutes, and on demand through the server's meeting-retry API, called with the API key
+- Assert the meeting-retry API creates a failed meeting once Google works again, and the booking-request API then shows it as "created"
+- Assert the meeting-retry API leaves a created meeting alone: no second Google event is created
+- Assert the meeting-retry API rejects calls without a valid API key
 
 # Rate limiting
 - Every test acts as its own client, so tests never use up each other's request budget

@@ -75,7 +75,7 @@ export const ConfirmationPage = ({ booking, onConfirm }: { booking: Booking; onC
         <p data-testid="summary-time">{time}</p>
         <p data-testid="summary-time-zone">{timeZoneLabel(booking.timeZone)}</p>
         <p data-testid="meeting-link-message" className="mt-auto text-sm text-muted-foreground">
-          The meeting link will be sent to you once we confirm the booking on our end.
+          Once you confirm, you'll shortly receive an email with the Google Meet link.
         </p>
       </section>
 

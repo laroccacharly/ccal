@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["alchemy.run.ts", "src/shared", "src/cli", "src/config", "src/e2e", "playwright.config.ts", "oxlint.config.ts"]
+  "include": ["alchemy.run.ts", "src/shared", "src/cli", "src/local", "src/e2e", "playwright.config.ts", "oxlint.config.ts"]
 }

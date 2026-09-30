@@ -1,8 +1,8 @@
 import { Console, Effect, Option } from "effect"
 import { Command, Flag } from "effect/unstable/cli"
 
-import { configPath } from "../../config/paths"
-import { readConfig, setUrl } from "../../config/service"
+import { settingsPath } from "../../local/paths"
+import { readSettings, setUrl } from "../../local/settings"
 
 export const configCommand = Command.make(
   "config",
@@ -13,8 +13,8 @@ export const configCommand = Command.make(
     ),
   },
   Effect.fn("configCommand")(function* configCommand({ setUrl: url }) {
-    const config = Option.isSome(url) ? yield* setUrl(url.value) : yield* readConfig()
-    yield* Console.log(`url: ${config.url ?? "(not set, use `ccal config --set-url=<url>`)"}`)
-    yield* Console.error(`Stored in ${yield* configPath()}`)
+    const settings = Option.isSome(url) ? yield* setUrl(url.value) : yield* readSettings()
+    yield* Console.log(`url: ${settings.url ?? "(not set, use `ccal config --set-url=<url>`)"}`)
+    yield* Console.error(`Stored in ${yield* settingsPath()}`)
   }),
 ).pipe(Command.withDescription("Print the local configuration, or change it"))

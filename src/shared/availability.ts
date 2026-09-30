@@ -3,6 +3,7 @@ import type { Availability } from "./types"
 // Meeting slots are defined in Montreal wall-clock time and shown in the visitor's chosen zone.
 export const HOST_TIME_ZONE = "America/Toronto"
 const HOST_SLOTS = ["13:30", "15:30", "16:30"]
+export const MEETING_MINUTES = 30
 
 // Days can be booked from the day after tomorrow through the end of the month 3 months from now.
 const FIRST_BOOKABLE_DAY = 2

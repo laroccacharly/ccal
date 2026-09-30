@@ -1,8 +1,9 @@
 import * as Cloudflare from "alchemy/Cloudflare"
 import * as SQL from "alchemy/SQL/D1"
-import { Config, Effect, Option } from "effect"
-import { HttpRouter, HttpServerResponse } from "effect/unstable/http"
+import { Config, Effect, Layer, Option } from "effect"
+import { FetchHttpClient, HttpRouter, HttpServerResponse } from "effect/unstable/http"
 
+import { RETRY_CRON, retryMeetings } from "./meetings"
 import { RATE_LIMIT, RateLimiter, rateLimit } from "./rate-limit"
 import { routes } from "./routes"
 
@@ -37,6 +38,17 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
       env: {
         // Required to read bookings (GET /api/booking-requests). Set it in .env or the environment.
         CCAL_API_KEY: Config.Redacted("CCAL_API_KEY"),
+        // To create Google Meet invites: the OAuth client from .env, and the refresh token saved by `ccal login`
+        // (provided by alchemy.run.ts). The Worker trades the refresh token for a short-lived access token.
+        // Read here rather than passed as Config, which Alchemy resolves without alchemy.run.ts's provider.
+        GOOGLE_CLIENT_ID: yield* Config.String("GOOGLE_CLIENT_ID"),
+        GOOGLE_CLIENT_SECRET: yield* Config.Redacted("GOOGLE_CLIENT_SECRET"),
+        GOOGLE_REFRESH_TOKEN: yield* Config.Redacted("GOOGLE_REFRESH_TOKEN"),
+        // Only set by the end-to-end tests, to stand in for Google.
+        ...Option.match(yield* Config.option(Config.String("GOOGLE_API_ORIGIN")), {
+          onNone: () => ({}),
+          onSome: (origin) => ({ GOOGLE_API_ORIGIN: origin }),
+        }),
       },
     }
   }),
@@ -44,10 +56,14 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
     const d1 = yield* Cloudflare.D1.QueryDatabase(yield* Database)
     const limiter = yield* RateLimiter
     const handleFetch = yield* HttpRouter.toHttpEffect(routes)
+    const services = Layer.mergeAll(SQL.D1Layer(d1), FetchHttpClient.layer)
+    yield* Cloudflare.Workers.cron(RETRY_CRON, (controller) =>
+      retryMeetings(controller.scheduledTime).pipe(Effect.provide(services)),
+    )
     return {
       fetch: rateLimit(limiter).pipe(
         Effect.andThen(handleFetch),
-        Effect.provide(SQL.D1Layer(d1)),
+        Effect.provide(services),
         Effect.catchTags({
           RateLimited: () =>
             Effect.succeed(
@@ -79,6 +95,12 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
         Effect.orDie,
       ),
     }
-  }).pipe(Effect.provide([Cloudflare.D1.QueryDatabaseBinding, Cloudflare.Workers.RateLimitBinding])),
+  }).pipe(
+    Effect.provide([
+      Cloudflare.D1.QueryDatabaseBinding,
+      Cloudflare.Workers.RateLimitBinding,
+      Cloudflare.Workers.CronEventSourceLive,
+    ]),
+  ),
 ) {}
 
