@@ -1,6 +1,12 @@
 # ccal
 
-A small booking app. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The `ccal` CLI can also create invites directly. The page and its API run as a single Cloudflare Worker.
+Cal minimal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. Admin also receives an notification email.
+
+## Stack
+
+- effect-ts
+- cloudflare worker and email
+- google-meet
 
 ## Requirements
 
