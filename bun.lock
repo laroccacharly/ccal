@@ -10,7 +10,7 @@
         "@effect/platform-node": "4.0.0-rc.117",
         "@effect/sql-d1": "4.0.0-rc.117",
         "alchemy": "2.0.0-beta.79",
-        "cmail-client": "github:laroccacharly/cmail-client",
+        "cmail-client": "github:laroccacharly/cmail-client#v0.1.1",
         "effect": "4.0.0-rc.117",
       },
       "devDependencies": {
@@ -707,7 +707,7 @@
 
     "cluster-key-slot": ["cluster-key-slot@1.1.2", "", {}, "sha512-RMr0FhtfXemyinomL4hrWcYJxmX6deFdCxpJzhDttxgO1+bcCnkk+9drydLVDmAMG7NE6aN/fl4F7ucU/90gAA=="],
 
-    "cmail-client": ["cmail-client@github:laroccacharly/cmail-client#fd4474c", { "dependencies": { "zod": "^4" }, "bin": { "cmail-send": "./send.ts" } }, "laroccacharly-cmail-client-fd4474c", "sha512-5uQ80AUJHSSC8A5XWmhKpUAAlVdUwBMoph2B4DyCwCG5FCL6TDIL4/qTLZCCCTEaLOKaLIgqWaYZa8HQc74Wgg=="],
+    "cmail-client": ["cmail-client@github:laroccacharly/cmail-client#31906c7", { "dependencies": { "zod": "^4" }, "bin": { "cmail-send": "./send.ts" } }, "laroccacharly-cmail-client-31906c7", "sha512-TDDmUCzEcI8JYujw8JaNS8ZoWwOftCAdiN9nlCftwQLF4yyu3uo7kNj+QT/406Hs+8gMwN6g8v6/TA/oRzhVpg=="],
 
     "cn": ["cn@0.4.0", "", { "bin": { "cn": "bin/cn.mjs" } }, "sha512-qOAeUhPwPzBxx6jaeQdo646XIKliKHc2j1ZF7Ngb1o0pJZKH5gq8FkA0aVdUdPFUDXNXyUCXpCtoJISo6dhizg=="],
 

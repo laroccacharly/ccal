@@ -1,6 +1,6 @@
 {
   "name": "ccal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "bin": {
     "ccal": "src/cli/index.ts"
@@ -26,7 +26,7 @@
     "@effect/platform-node": "4.0.0-rc.117",
     "@effect/sql-d1": "4.0.0-rc.117",
     "alchemy": "2.0.0-beta.79",
-    "cmail-client": "github:laroccacharly/cmail-client",
+    "cmail-client": "github:laroccacharly/cmail-client#v0.1.1",
     "effect": "4.0.0-rc.117"
   },
   "devDependencies": {
