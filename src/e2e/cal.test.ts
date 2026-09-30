@@ -53,6 +53,7 @@ import type {
 
 import type { StubEmail } from "./cmail-stub"
 import type { StubEvent } from "./google-stub"
+import { workerLogLinesSince } from "./worker-log"
 
 const API_KEY = process.env.CCAL_API_KEY ?? ""
 
@@ -1117,10 +1118,14 @@ test.describe("Admin notification", () => {
     expect(await adminEmails(request, email)).toHaveLength(1)
   })
 
+  // The booking must not fail when the email does. The failure is logged at error level by the Worker in the
+  // background, so this asserts both the part the API promises (the booking is stored without the email) and that
+  // the failure is recorded rather than swallowed.
   test("when the email cannot be sent, the booking is still accepted and stored", async ({
     request,
   }) => {
     const email = uniqueEmail()
+    const failedAt = Date.now()
     await cmailOutage(request, email, true)
     await book(request, email)
     expect(await storedBooking(request, email)).toMatchObject({
@@ -1129,6 +1134,15 @@ test.describe("Admin notification", () => {
     })
     await settledMeeting(request, email, "created")
     expect(await adminEmails(request, email)).toEqual([])
+    await expect
+      .poll(
+        async () => {
+          const lines = await workerLogLinesSince(failedAt)
+          return lines.join("\n")
+        },
+        { message: "waiting for the Worker to log the failed admin email" }
+      )
+      .toContain("AdminEmailNotSent")
     await cmailOutage(request, email, false)
   })
 })

@@ -79,7 +79,7 @@
 
 - Assert that once a booking is accepted, an email is sent to ADMIN_EMAIL, titled "New booking request from <name>", with the booked date, time and time zone, and the booker's name, email and description
 - Assert exactly one email is sent per booking request
-- Assert that when the email cannot be sent, the booking is still accepted and stored
+- Assert that when the email cannot be sent, the booking is still accepted and stored, and the failure is recorded in the Worker's logs as an error rather than swallowed
 
 # Rate limiting
 

@@ -61,8 +61,11 @@ const createBookingRequest = Effect.gen(function* createBookingRequest() {
   }
   const booking = yield* insertBookingRequest({ ...body, startsAt })
   const context = yield* Cloudflare.Workers.WorkerExecutionContext
+  // The email failure must not fail the request, but it must not vanish either. `waitUntil` only reports a rejection
+  // in production (locally workerd swallows it), so log it at error level first — visible in the dev log and matched
+  // by Cloudflare's `$metadata.level = error` — then die, so production also records the invocation as an exception.
   yield* context.waitUntil(
-    notifyAdmin(booking).pipe(Effect.catchCause(Effect.logError))
+    notifyAdmin(booking).pipe(Effect.tapCause(Effect.logError), Effect.orDie)
   )
   const meeting = yield* unfinishedMeeting(booking.id)
   if (meeting !== undefined) {
