@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Book a Meeting — C2 Surfaces</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #e6ecef;
+        --tray: #f3f6f7;
+        --surface: #ffffff;
+        --ink: #142028;
+        --muted: #62717c;
+        --line: #dfe5e9;
+        --hover: #f1f5f7;
+        --accent: #1d5c8c;
+        --accent-ink: #ffffff;
+        --accent-soft: #e3eef6;
+        --error: #b42318;
+        --font: "Albert Sans", system-ui, sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c1114;
+          --tray: #12181c;
+          --surface: #1a2227;
+          --ink: #e8eef2;
+          --muted: #93a2ad;
+          --line: #2a353c;
+          --hover: #212b31;
+          --accent: #6fb2e4;
+          --accent-ink: #0a1e2d;
+          --accent-soft: #1b3244;
+          --error: #ff8a7a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--ink);
+      }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 32px 16px;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* A tray holding separate surfaces, like the sketch's boxes inside a box. */
+      .tray {
+        width: min(1020px, 100%);
+        background: var(--tray);
+        border-radius: 28px;
+        padding: 12px;
+        display: grid;
+        gap: 12px;
+        box-shadow: 0 20px 50px -30px rgb(20 32 40 / 0.35);
+      }
+      .tray.pick {
+        grid-template-columns: 240px 1fr 250px;
+      }
+      .tray.details {
+        grid-template-columns: 280px 1fr;
+        width: min(780px, 100%);
+      }
+      .tray.done {
+        width: min(460px, 100%);
+      }
+      .box {
+        background: var(--surface);
+        border-radius: 18px;
+        padding: 26px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        box-shadow: 0 1px 0 var(--line);
+      }
+
+      /* Meeting box */
+      .who {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .who span {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      h1 {
+        font-size: 24px;
+        line-height: 1.15;
+        font-weight: 700;
+        margin: 0 0 18px;
+        letter-spacing: -0.01em;
+      }
+      .facts {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .facts li {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      /* Fills in as the visitor chooses, so the pick is always readable in one place. */
+      .picked {
+        margin-top: auto;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        display: grid;
+        gap: 4px;
+      }
+      .picked .lbl {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .picked .val {
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .picked .val.empty {
+        color: var(--muted);
+        font-weight: 400;
+      }
+
+      /* Calendar */
+      .cal-head {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .cal-head h2 {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0;
+        min-width: 150px;
+        text-align: center;
+      }
+      .icon-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 0;
+        background: var(--hover);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        color: var(--ink);
+      }
+      .icon-btn:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .chosen-date {
+        text-align: center;
+        background: var(--hover);
+        border-radius: 12px;
+        padding: 9px 12px;
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+      .chosen-date.set {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        text-align: center;
+      }
+      .wd {
+        font-size: 12px;
+        color: var(--muted);
+        padding-bottom: 6px;
+      }
+      .day {
+        height: 46px;
+        border: 0;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 15px;
+        background: none;
+        position: relative;
+        font-variant-numeric: tabular-nums;
+      }
+      /* Available days carry a dot underneath instead of a filled background. */
+      .day:not(:disabled)::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 7px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--accent);
+        transform: translateX(-50%);
+      }
+      .day:hover:not(:disabled) {
+        background: var(--hover);
+      }
+      .day:disabled {
+        color: var(--muted);
+        font-weight: 400;
+        cursor: default;
+        opacity: 0.5;
+      }
+      .day[aria-pressed="true"] {
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      .day[aria-pressed="true"]::after {
+        background: var(--accent-ink);
+      }
+      .day.today {
+        box-shadow: inset 0 0 0 1px var(--line);
+      }
+      .banner {
+        grid-column: 1 / -1;
+        color: var(--muted);
+        font-size: 14px;
+        padding: 12px 0;
+      }
+
+      /* Times */
+      .times-head {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0 0 12px;
+        text-align: center;
+      }
+      select {
+        width: 100%;
+        appearance: none;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 999px;
+        padding: 8px 30px 8px 14px;
+        font-size: 14px;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2362717C' stroke-width='1.5'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+      }
+      .clock {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 8px 0 16px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .slots {
+        display: grid;
+        gap: 8px;
+      }
+      .slot {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--surface);
+        cursor: pointer;
+        padding: 10px 14px;
+        text-align: left;
+        display: grid;
+        gap: 1px;
+        font-variant-numeric: tabular-nums;
+      }
+      .slot b {
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .slot span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .slot:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      .slot:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+      .slot[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .slot[aria-pressed="true"] b {
+        color: var(--accent);
+      }
+      .primary {
+        height: 48px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 0 20px;
+        margin-top: auto;
+      }
+      .primary:disabled {
+        background: var(--line);
+        color: var(--muted);
+        cursor: default;
+      }
+      .times .primary {
+        margin-top: 20px;
+      }
+      .times .spacer {
+        flex: 1;
+      }
+
+      /* Details */
+      dl {
+        margin: 0;
+        display: grid;
+        gap: 14px;
+      }
+      dt {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      dd {
+        margin: 2px 0 0;
+        font-weight: 600;
+      }
+      .back {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        border: 0;
+        background: none;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 0;
+        margin-bottom: 20px;
+        font-size: 14px;
+      }
+      .back:hover {
+        color: var(--ink);
+      }
+      .info {
+        margin-top: auto;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: var(--accent-soft);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        flex: 1;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .field input,
+      .field textarea {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface);
+        padding: 11px 13px;
+        font-size: 15px;
+        resize: vertical;
+      }
+      .field input:focus,
+      .field textarea:focus {
+        border-color: var(--accent);
+        outline: 3px solid var(--accent-soft);
+      }
+      .field [aria-invalid="true"] {
+        border-color: var(--error);
+      }
+      .err {
+        color: var(--error);
+        font-size: 13px;
+        margin: 0;
+      }
+      .ghost {
+        height: 46px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: none;
+        font-weight: 500;
+        cursor: pointer;
+        padding: 0 18px;
+      }
+
+      dialog {
+        border: 0;
+        border-radius: 22px;
+        padding: 24px;
+        width: min(380px, calc(100% - 32px));
+        background: var(--surface);
+        color: var(--ink);
+      }
+      dialog::backdrop {
+        background: rgb(12 17 20 / 0.45);
+      }
+      dialog h2 {
+        font-size: 19px;
+        margin: 0 0 8px;
+      }
+      dialog p {
+        margin: 0 0 20px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .row .primary {
+        margin: 0;
+        height: 46px;
+      }
+
+      .check {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--accent-ink);
+        display: grid;
+        place-items: center;
+        margin-bottom: 16px;
+      }
+      .done-text {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      @media (max-width: 880px) {
+        .tray.pick {
+          grid-template-columns: 1fr 1fr;
+        }
+        .tray.pick .box:first-child {
+          grid-column: 1 / -1;
+        }
+        .tray.pick .picked {
+          display: none;
+        }
+      }
+      @media (max-width: 620px) {
+        .tray {
+          padding: 8px;
+          gap: 8px;
+          border-radius: 22px;
+        }
+        .tray.pick,
+        .tray.details {
+          grid-template-columns: 1fr;
+        }
+        .box {
+          padding: 22px 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="tray" id="tray"></main>
+    <dialog id="confirm" aria-labelledby="confirm-title">
+      <h2 id="confirm-title">Confirm your booking</h2>
+      <p id="confirm-text"></p>
+      <div class="row">
+        <button class="ghost" id="cancel">Go back</button
+        ><button class="primary" id="send">Send request</button>
+      </div>
+    </dialog>
+    <script>
+      // Mock of the app's availability: slots are Montreal wall-clock times shown in the visitor's zone.
+      const HOST_TZ = "America/Toronto"
+      const HOST_SLOTS = ["13:30", "15:30", "16:30"]
+      const MINUTES = 30
+      const ZONES = [
+        { value: "America/Toronto", label: "Montreal, Canada" },
+        { value: "America/Vancouver", label: "Vancouver, Canada" },
+        { value: "America/New_York", label: "New York, USA" },
+        { value: "America/Los_Angeles", label: "Los Angeles, USA" },
+        { value: "Europe/London", label: "London, UK" },
+        { value: "Europe/Paris", label: "Paris, France" },
+        { value: "Asia/Tokyo", label: "Tokyo, Japan" },
+      ]
+      const zoneLabel = (v) => ZONES.find((z) => z.value === v)?.label ?? v
+      const zoneCity = (v) => zoneLabel(v).split(",")[0]
+
+      const zoneOffset = (instant, tz) => {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          hourCycle: "h23",
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+          second: "numeric",
+        }).formatToParts(instant)
+        const get = (t) => Number(parts.find((p) => p.type === t)?.value)
+        const asUtc = Date.UTC(
+          get("year"),
+          get("month") - 1,
+          get("day"),
+          get("hour"),
+          get("minute"),
+          get("second")
+        )
+        return asUtc - Math.floor(instant / 1000) * 1000
+      }
+      const zonedInstant = (date, time, tz) => {
+        const [y, m, d] = date.split("-").map(Number)
+        const [h, min] = time.split(":").map(Number)
+        const guess = Date.UTC(y, m - 1, d, h, min)
+        const first = guess - zoneOffset(guess, tz)
+        return guess - zoneOffset(first, tz)
+      }
+
+      const pad = (n) => String(n).padStart(2, "0")
+      const iso = (d) =>
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      const fromIso = (s) => {
+        const [y, m, d] = s.split("-").map(Number)
+        return new Date(y, m - 1, d)
+      }
+      const fmtTime = (ms, tz) =>
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: tz,
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(ms)
+      const hourIn = (ms, tz) => {
+        const [h, m] = fmtTime(ms, tz).split(":").map(Number)
+        return h + m / 60
+      }
+      const endOf = (ms) => ms + MINUTES * 60000
+      const longDate = (key) =>
+        fromIso(key).toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      const shortDate = (key) =>
+        fromIso(key).toLocaleDateString("en-GB", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+        })
+      const monthName = (y, m) =>
+        new Date(y, m, 1).toLocaleDateString("en-GB", {
+          month: "long",
+          year: "numeric",
+        })
+
+      // Weekdays from the day after tomorrow to the end of the month three months out; some days are full.
+      const AVAILABILITY = (() => {
+        const map = new Map()
+        const t = new Date()
+        const end = new Date(t.getFullYear(), t.getMonth() + 4, 0)
+        for (
+          let d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 2);
+          d <= end;
+          d.setDate(d.getDate() + 1)
+        ) {
+          if (d.getDay() === 0 || d.getDay() === 6) continue
+          const key = iso(d)
+          const seed = (d.getDate() * 7 + d.getMonth() * 3) % 11
+          if (seed === 0) continue
+          const slots = HOST_SLOTS.filter((_, i) => (seed + i) % 5 !== 0).map(
+            (time) => zonedInstant(key, time, HOST_TZ)
+          )
+          if (slots.length) map.set(key, slots)
+        }
+        return map
+      })()
+
+      const validate = ({ name, email, description }) => {
+        const errors = {}
+        if (!name.trim()) errors.name = "Enter your name."
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+          errors.email = "Enter an email address like name@example.com."
+        if (!description.trim())
+          errors.description =
+            "Say a few words about what you'd like to discuss."
+        return errors
+      }
+      const esc = (s) =>
+        s.replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c]
+        )
+
+      const state = {
+        step: "pick",
+        date: null,
+        slot: null,
+        tz: HOST_TZ,
+        contact: { name: "", email: "", description: "" },
+        errors: {},
+      }
+      const now = new Date()
+      state.view = { y: now.getFullYear(), m: now.getMonth() }
+      const $ = (s) => document.querySelector(s)
+      const icon = {
+        clock: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
+        video: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>`,
+        left: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>`,
+        right: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`,
+        check: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+      }
+      const whenText = () =>
+        state.slot
+          ? `${fmtTime(state.slot, state.tz)} – ${fmtTime(endOf(state.slot), state.tz)}`
+          : null
+
+      const meetingBox = () => `<section class="box">
+  <div class="who"><div class="avatar" aria-hidden="true">CL</div><span>Charly Larocca</span></div>
+  <h1>30-minute meeting</h1>
+  <ul class="facts"><li>${icon.clock} 30 min</li><li>${icon.video} Google Meet</li></ul>
+  <div class="picked" aria-live="polite">
+    <span class="lbl">Your pick</span>
+    <span class="val${state.date ? "" : " empty"}">${state.date ? shortDate(state.date) : "No date yet"}</span>
+    <span class="val${state.slot ? "" : " empty"}">${whenText() ?? "No time yet"}</span>
+  </div>
+</section>`
+
+      const calBox = () => {
+        const { y, m } = state.view
+        const lead = new Date(y, m, 1).getDay()
+        const days = new Date(y, m + 1, 0).getDate()
+        const last = fromIso([...AVAILABILITY.keys()].at(-1))
+        const ahead = (y - now.getFullYear()) * 12 + m - now.getMonth()
+        const maxAhead =
+          (last.getFullYear() - now.getFullYear()) * 12 +
+          last.getMonth() -
+          now.getMonth()
+        let cells =
+          ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+            .map((d) => `<span class="wd">${d}</span>`)
+            .join("") + "<span></span>".repeat(lead)
+        let any = false
+        for (let d = 1; d <= days; d++) {
+          const key = iso(new Date(y, m, d))
+          const ok = AVAILABILITY.has(key)
+          any ||= ok
+          cells += `<button class="day${key === iso(now) ? " today" : ""}" data-date="${key}" aria-pressed="${key === state.date}" aria-label="${longDate(key)}${ok ? "" : ", unavailable"}" ${ok ? "" : "disabled"}>${d}</button>`
+        }
+        if (!any) cells += `<p class="banner">No available days this month.</p>`
+        return `<section class="box"><div class="cal-head">
+    <button class="icon-btn" data-shift="-1" aria-label="Previous month" ${ahead <= 0 ? "disabled" : ""}>${icon.left}</button>
+    <h2>${monthName(y, m)}</h2>
+    <button class="icon-btn" data-shift="1" aria-label="Next month" ${ahead >= maxAhead ? "disabled" : ""}>${icon.right}</button></div>
+    <p class="chosen-date${state.date ? " set" : ""}">${state.date ? longDate(state.date) : "Select a date"}</p>
+    <div class="grid">${cells}</div></section>`
+      }
+
+      const timeBox = () => {
+        const slots = state.date
+          ? AVAILABILITY.get(state.date)
+          : AVAILABILITY.values().next().value
+        const showHost = state.tz !== HOST_TZ
+        return `<section class="box times">
+    <h2 class="times-head">Time</h2>
+    <select id="tz" aria-label="Time zone">${ZONES.map((z) => `<option value="${z.value}" ${z.value === state.tz ? "selected" : ""}>${z.label}</option>`).join("")}</select>
+    <p class="clock" id="clock"></p>
+    <div class="slots">${slots
+      .map(
+        (
+          s
+        ) => `<button class="slot" data-slot="${s}" aria-pressed="${s === state.slot}" ${state.date ? "" : "disabled"}>
+      <b>${fmtTime(s, state.tz)}</b><span>${showHost ? `${fmtTime(s, HOST_TZ)} for Charly in Montreal` : `until ${fmtTime(endOf(s), state.tz)}`}</span></button>`
+      )
+      .join("")}</div>
+    <div class="spacer"></div>
+    <button class="primary" id="next" ${state.slot ? "" : "disabled"}>Continue</button>
+  </section>`
+      }
+
+      const field = (id, label, type) => {
+        const err = state.errors[id]
+        const control =
+          type === "textarea"
+            ? `<textarea id="${id}" rows="4" aria-invalid="${!!err}">${esc(state.contact[id])}</textarea>`
+            : `<input id="${id}" type="${type}" value="${esc(state.contact[id])}" aria-invalid="${!!err}" autocomplete="${id}">`
+        return `<div class="field"><label for="${id}">${label}</label>${control}${err ? `<p class="err">${err}</p>` : ""}</div>`
+      }
+
+      const detailsBoxes = () => `<section class="box">
+    <button class="back" id="back">${icon.left} Back</button>
+    <h1>Summary</h1>
+    <dl><div><dt>Date</dt><dd>${longDate(state.date)}</dd></div>
+      <div><dt>Time</dt><dd>${whenText()}</dd></div>
+      <div><dt>Time zone</dt><dd>${zoneLabel(state.tz)}</dd></div></dl>
+    <p class="info" style="margin-top:28px">Once you confirm, you'll shortly receive an email with the Google Meet link.</p>
+  </section>
+  <section class="box"><form id="form" novalidate>
+    ${field("name", "Name", "text")}${field("email", "Email", "email")}${field("description", "What would you like to discuss?", "textarea")}
+    <button class="primary" type="submit">Confirm</button></form></section>`
+
+      const doneBox = () => `<section class="box">
+  <div class="check">${icon.check}</div>
+  <h1 style="margin-bottom:8px">You're booked!</h1>
+  <p class="done-text">Check your inbox: an email with the Google Meet link is on its way to ${esc(state.contact.email)}.</p>
+</section>
+<section class="box"><dl><div><dt>When</dt><dd>${longDate(state.date)}, ${fmtTime(state.slot, state.tz)} (${zoneLabel(state.tz)})</dd></div>
+  <div><dt>Name</dt><dd>${esc(state.contact.name)}</dd></div>
+  <div><dt>About</dt><dd style="font-weight:400;white-space:pre-wrap">${esc(state.contact.description)}</dd></div></dl></section>`
+
+      const render = () => {
+        const tray = $("#tray")
+        tray.className = `tray ${state.step}`
+        tray.innerHTML = {
+          pick: () => meetingBox() + calBox() + timeBox(),
+          details: detailsBoxes,
+          done: doneBox,
+        }[state.step]()
+        tick()
+      }
+      const tick = () => {
+        const c = $("#clock")
+        if (c)
+          c.textContent = `It's ${fmtTime(Date.now(), state.tz)} in ${zoneCity(state.tz)}`
+      }
+      setInterval(tick, 1000)
+
+      document.addEventListener("click", (e) => {
+        const t = e.target.closest("button")
+        if (!t) return
+        if (t.dataset.shift) {
+          const n = new Date(
+            state.view.y,
+            state.view.m + Number(t.dataset.shift),
+            1
+          )
+          state.view = { y: n.getFullYear(), m: n.getMonth() }
+          render()
+        }
+        if (t.dataset.date) {
+          state.date = t.dataset.date
+          state.slot = null
+          render()
+          $(".slot")?.focus()
+        }
+        if (t.dataset.slot) {
+          state.slot = Number(t.dataset.slot)
+          render()
+          $(`[data-slot="${state.slot}"]`).focus()
+        }
+        if (t.id === "next") {
+          state.step = "details"
+          render()
+          $("#name").focus()
+        }
+        if (t.id === "back") {
+          state.step = "pick"
+          render()
+        }
+        if (t.id === "cancel") $("#confirm").close()
+        if (t.id === "send") {
+          $("#confirm").close()
+          state.step = "done"
+          render()
+        }
+      })
+      document.addEventListener("change", (e) => {
+        if (e.target.id === "tz") {
+          state.tz = e.target.value
+          render()
+          $("#tz").focus()
+        }
+      })
+      document.addEventListener("input", (e) => {
+        if (e.target.id in state.contact)
+          state.contact[e.target.id] = e.target.value
+      })
+      document.addEventListener("submit", (e) => {
+        e.preventDefault()
+        state.errors = validate(state.contact)
+        if (Object.keys(state.errors).length) {
+          render()
+          $(`#${Object.keys(state.errors)[0]}`).focus()
+          return
+        }
+        $("#confirm-text").textContent =
+          `${longDate(state.date)} at ${fmtTime(state.slot, state.tz)}, ${zoneLabel(state.tz)} time.`
+        $("#confirm").showModal()
+      })
+      render()
+    </script>
+  </body>
+</html>

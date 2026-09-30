@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Book a Meeting — Agenda</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Instrument+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --desk: #e8ecf0;
+        --sheet: #ffffff;
+        --ink: #1d2733;
+        --muted: #667385;
+        --rule: #dce3ea;
+        --faint: #f2f5f8;
+        --hl: #ffe066;
+        --hl-ink: #1d2733;
+        --blue: #2a4ba0;
+        --error: #b42318;
+        --serif: "Newsreader", Georgia, serif;
+        --sans: "Instrument Sans", system-ui, sans-serif;
+        --row: 64px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --desk: #12161c;
+          --sheet: #1b2129;
+          --ink: #e7ecf2;
+          --muted: #93a0b2;
+          --rule: #2d3642;
+          --faint: #222932;
+          --hl: #e8c84a;
+          --hl-ink: #1b1b12;
+          --blue: #8fa8ee;
+          --error: #ff8a7a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        font-family: var(--sans);
+        color: var(--ink);
+        background: var(--desk);
+      }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        padding: 32px 16px;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
+      }
+
+      .spread {
+        width: min(980px, 100%);
+      }
+      .head {
+        padding: 0 8px 20px;
+      }
+      .head h1 {
+        font-family: var(--serif);
+        font-weight: 500;
+        font-size: clamp(30px, 4vw, 42px);
+        line-height: 1.1;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      .head p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      .pages {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        background: var(--sheet);
+        border-radius: 6px;
+        box-shadow:
+          0 1px 0 var(--rule),
+          0 18px 40px -24px rgb(29 39 51 / 0.35);
+        position: relative;
+        min-height: 520px;
+      }
+      /* The gutter where the two pages meet. */
+      .pages::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 28px;
+        transform: translateX(-50%);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgb(29 39 51 / 0.06) 45%,
+          rgb(29 39 51 / 0.1) 50%,
+          rgb(29 39 51 / 0.06) 55%,
+          transparent
+        );
+        pointer-events: none;
+      }
+      .page {
+        padding: 32px 40px 28px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      /* Calendar */
+      .month {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+      .month h2 {
+        font-family: var(--serif);
+        font-weight: 500;
+        font-size: 26px;
+        margin: 0;
+      }
+      .nav {
+        display: flex;
+        gap: 4px;
+      }
+      .icon-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 1px solid var(--rule);
+        background: none;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      .icon-btn:hover:not(:disabled) {
+        background: var(--faint);
+      }
+      .icon-btn:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        row-gap: 4px;
+        text-align: center;
+      }
+      .grid .wd {
+        font-size: 12px;
+        color: var(--muted);
+        padding-bottom: 8px;
+      }
+      .day {
+        font-family: var(--serif);
+        font-size: 19px;
+        height: 44px;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        border-radius: 3px;
+        position: relative;
+        font-variant-numeric: lining-nums tabular-nums;
+      }
+      .day:disabled {
+        color: var(--muted);
+        opacity: 0.45;
+        cursor: default;
+      }
+      .day:not(:disabled):not([aria-pressed="true"]):hover {
+        background: var(--faint);
+      }
+      .day.today::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 6px;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--blue);
+        transform: translateX(-50%);
+      }
+      /* The chosen day is marked like a highlighter stroke across the number. */
+      .day[aria-pressed="true"] {
+        background: linear-gradient(
+          transparent 18%,
+          var(--hl) 18%,
+          var(--hl) 82%,
+          transparent 82%
+        );
+        color: var(--hl-ink);
+        font-weight: 600;
+      }
+
+      .zone {
+        margin-top: auto;
+        padding-top: 28px;
+        border-top: 1px solid var(--rule);
+        display: grid;
+        gap: 6px;
+        font-size: 14px;
+      }
+      .zone label {
+        color: var(--muted);
+      }
+      .zone select {
+        appearance: none;
+        border: 0;
+        border-bottom: 1px solid var(--ink);
+        background: transparent;
+        padding: 6px 24px 6px 0;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23667385' stroke-width='1.5'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 4px center;
+      }
+      .zone select option {
+        background: var(--sheet);
+      }
+      .zone .clock {
+        color: var(--muted);
+      }
+
+      /* Day page */
+      .day-title {
+        font-family: var(--serif);
+        font-weight: 500;
+        font-size: 26px;
+        margin: 0 0 4px;
+      }
+      .day-sub {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 0 0 20px;
+      }
+      .timeline {
+        position: relative;
+        margin-left: 52px;
+      }
+      .hour {
+        height: var(--row);
+        border-top: 1px solid var(--rule);
+        position: relative;
+      }
+      .hour span {
+        position: absolute;
+        left: -52px;
+        top: -9px;
+        font-size: 12px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .slot {
+        position: absolute;
+        left: 8px;
+        right: 0;
+        height: calc(var(--row) / 2 - 2px);
+        border: 1px solid var(--ink);
+        background: var(--sheet);
+        border-radius: 3px;
+        cursor: pointer;
+        text-align: left;
+        padding: 0 12px;
+        font-size: 14px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .slot:hover:not(:disabled):not([aria-pressed="true"]) {
+        background: var(--faint);
+      }
+      .slot:disabled {
+        border-style: dashed;
+        border-color: var(--rule);
+        color: var(--muted);
+        cursor: default;
+      }
+      .slot[aria-pressed="true"] {
+        background: linear-gradient(var(--hl), var(--hl)) no-repeat;
+        color: var(--hl-ink);
+        border-color: var(--hl);
+      }
+      .slot small {
+        font-weight: 400;
+        color: inherit;
+        opacity: 0.7;
+      }
+      .empty-month {
+        grid-column: 1 / -1;
+        font-family: var(--serif);
+        font-style: italic;
+        color: var(--muted);
+        margin: 12px 0 0;
+      }
+      .empty-note {
+        color: var(--muted);
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 18px;
+        margin: 0 0 20px;
+      }
+
+      .actions {
+        margin-top: auto;
+        padding-top: 24px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 16px;
+      }
+      .btn {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 22px;
+        font-weight: 600;
+        background: var(--ink);
+        color: var(--sheet);
+        cursor: pointer;
+      }
+      .btn:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .link {
+        border: 0;
+        background: none;
+        color: var(--blue);
+        cursor: pointer;
+        padding: 0;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      /* Summary entry */
+      .entry {
+        margin-top: 20px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 4px 20px;
+        align-items: end;
+        margin-bottom: 24px;
+      }
+      .entry .num {
+        font-family: var(--serif);
+        font-size: 112px;
+        line-height: 0.8;
+        font-weight: 400;
+        grid-row: span 2;
+        font-variant-numeric: lining-nums;
+      }
+      .entry .wk {
+        font-family: var(--serif);
+        font-size: 24px;
+      }
+      .entry .mo {
+        color: var(--muted);
+      }
+      .when {
+        font-size: 20px;
+        font-weight: 500;
+        margin: 0 0 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .when mark {
+        background: linear-gradient(
+          transparent 20%,
+          var(--hl) 20%,
+          var(--hl) 85%,
+          transparent 85%
+        );
+        color: var(--hl-ink);
+        padding: 0 2px;
+      }
+      .meta {
+        color: var(--muted);
+        margin: 0 0 24px;
+      }
+      .note {
+        font-family: var(--serif);
+        font-size: 17px;
+        line-height: 1.5;
+        border-left: 2px solid var(--rule);
+        padding-left: 14px;
+        margin: 0;
+      }
+
+      /* Form on ruled lines */
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        flex: 1;
+      }
+      .field {
+        display: grid;
+        gap: 2px;
+      }
+      .field label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .field input,
+      .field textarea {
+        border: 0;
+        border-bottom: 1px solid var(--rule);
+        background: transparent;
+        padding: 6px 0;
+        font-size: 17px;
+        outline: none;
+      }
+      .field textarea {
+        resize: vertical;
+        line-height: 32px;
+        background-image: repeating-linear-gradient(
+          transparent 0 31px,
+          var(--rule) 31px 32px
+        );
+        border-bottom: 0;
+        min-height: 128px;
+        padding: 0;
+      }
+      .field input:focus {
+        border-bottom-color: var(--blue);
+      }
+      .field textarea:focus {
+        background-image: repeating-linear-gradient(
+          transparent 0 31px,
+          var(--blue) 31px 32px
+        );
+      }
+      .field [aria-invalid="true"] {
+        border-bottom-color: var(--error);
+      }
+      .err {
+        color: var(--error);
+        font-size: 13px;
+        margin: 2px 0 0;
+      }
+
+      .stamp {
+        align-self: flex-start;
+        border: 2px solid var(--blue);
+        color: var(--blue);
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-weight: 600;
+        transform: rotate(-4deg);
+        margin-bottom: 20px;
+      }
+      .done h2 {
+        font-family: var(--serif);
+        font-weight: 500;
+        font-size: 30px;
+        margin: 0 0 12px;
+      }
+      .done p {
+        font-size: 16px;
+        line-height: 1.55;
+        margin: 0 0 12px;
+        max-width: 38ch;
+      }
+
+      @media (max-width: 760px) {
+        .pages {
+          grid-template-columns: 1fr;
+        }
+        .pages::after {
+          display: none;
+        }
+        .page {
+          padding: 24px 20px;
+        }
+        .page + .page {
+          border-top: 1px dashed var(--rule);
+        }
+        .entry .num {
+          font-size: 84px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .slot[aria-pressed="true"],
+        .day[aria-pressed="true"] {
+          background-repeat: no-repeat;
+          animation: swipe 240ms ease-out;
+        }
+        @keyframes swipe {
+          from {
+            background-size: 0% 100%;
+          }
+          to {
+            background-size: 100% 100%;
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="spread">
+      <header class="head">
+        <h1>Half an hour with Charly</h1>
+        <p>30 minutes on Google Meet. Choose a day, then a time.</p>
+      </header>
+      <div class="pages" id="pages"></div>
+    </main>
+    <script>
+      // Mock of the app's availability: slots are Montreal wall-clock times shown in the visitor's zone.
+      const HOST_TZ = "America/Toronto"
+      const HOST_SLOTS = ["13:30", "15:30", "16:30"]
+      const MINUTES = 30
+      const ZONES = [
+        { value: "America/Toronto", label: "Montreal, Canada" },
+        { value: "America/Vancouver", label: "Vancouver, Canada" },
+        { value: "America/New_York", label: "New York, USA" },
+        { value: "America/Los_Angeles", label: "Los Angeles, USA" },
+        { value: "Europe/London", label: "London, UK" },
+        { value: "Europe/Paris", label: "Paris, France" },
+        { value: "Asia/Tokyo", label: "Tokyo, Japan" },
+      ]
+      const zoneLabel = (v) => ZONES.find((z) => z.value === v)?.label ?? v
+      const zoneCity = (v) => zoneLabel(v).split(",")[0]
+
+      const zoneOffset = (instant, tz) => {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          hourCycle: "h23",
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+          second: "numeric",
+        }).formatToParts(instant)
+        const get = (t) => Number(parts.find((p) => p.type === t)?.value)
+        const asUtc = Date.UTC(
+          get("year"),
+          get("month") - 1,
+          get("day"),
+          get("hour"),
+          get("minute"),
+          get("second")
+        )
+        return asUtc - Math.floor(instant / 1000) * 1000
+      }
+      const zonedInstant = (date, time, tz) => {
+        const [y, m, d] = date.split("-").map(Number)
+        const [h, min] = time.split(":").map(Number)
+        const guess = Date.UTC(y, m - 1, d, h, min)
+        const first = guess - zoneOffset(guess, tz)
+        return guess - zoneOffset(first, tz)
+      }
+
+      const pad = (n) => String(n).padStart(2, "0")
+      const iso = (d) =>
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      const fromIso = (s) => {
+        const [y, m, d] = s.split("-").map(Number)
+        return new Date(y, m - 1, d)
+      }
+      const fmtTime = (ms, tz) =>
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: tz,
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(ms)
+      const hourIn = (ms, tz) => {
+        const [h, m] = fmtTime(ms, tz).split(":").map(Number)
+        return h + m / 60
+      }
+      const endOf = (ms) => ms + MINUTES * 60000
+      const longDate = (key) =>
+        fromIso(key).toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      const shortDate = (key) =>
+        fromIso(key).toLocaleDateString("en-GB", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+        })
+      const monthName = (y, m) =>
+        new Date(y, m, 1).toLocaleDateString("en-GB", {
+          month: "long",
+          year: "numeric",
+        })
+
+      // Weekdays from the day after tomorrow to the end of the month three months out; some days are full.
+      const AVAILABILITY = (() => {
+        const map = new Map()
+        const t = new Date()
+        const end = new Date(t.getFullYear(), t.getMonth() + 4, 0)
+        for (
+          let d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 2);
+          d <= end;
+          d.setDate(d.getDate() + 1)
+        ) {
+          if (d.getDay() === 0 || d.getDay() === 6) continue
+          const key = iso(d)
+          const seed = (d.getDate() * 7 + d.getMonth() * 3) % 11
+          if (seed === 0) continue
+          const slots = HOST_SLOTS.filter((_, i) => (seed + i) % 5 !== 0).map(
+            (time) => zonedInstant(key, time, HOST_TZ)
+          )
+          if (slots.length) map.set(key, slots)
+        }
+        return map
+      })()
+
+      const validate = ({ name, email, description }) => {
+        const errors = {}
+        if (!name.trim()) errors.name = "Enter your name."
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+          errors.email = "Enter an email address like name@example.com."
+        if (!description.trim())
+          errors.description =
+            "Say a few words about what you'd like to discuss."
+        return errors
+      }
+      const esc = (s) =>
+        s.replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c]
+        )
+
+      const state = {
+        step: "pick",
+        date: null,
+        slot: null,
+        tz: HOST_TZ,
+        contact: { name: "", email: "", description: "" },
+        errors: {},
+      }
+      const now = new Date()
+      state.view = { y: now.getFullYear(), m: now.getMonth() }
+      const $ = (s) => document.querySelector(s)
+
+      const calendarPage = () => {
+        const { y, m } = state.view
+        const lead = (new Date(y, m, 1).getDay() + 6) % 7
+        const days = new Date(y, m + 1, 0).getDate()
+        const last = fromIso([...AVAILABILITY.keys()].at(-1))
+        const ahead = (y - now.getFullYear()) * 12 + m - now.getMonth()
+        const maxAhead =
+          (last.getFullYear() - now.getFullYear()) * 12 +
+          last.getMonth() -
+          now.getMonth()
+        let cells = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+          .map((d) => `<span class="wd">${d}</span>`)
+          .join("")
+        cells += "<span></span>".repeat(lead)
+        let any = false
+        for (let d = 1; d <= days; d++) {
+          const key = iso(new Date(y, m, d))
+          const today = key === iso(now) ? " today" : ""
+          any ||= AVAILABILITY.has(key)
+          cells += `<button class="day${today}" data-date="${key}" aria-pressed="${key === state.date}" ${AVAILABILITY.has(key) ? "" : "disabled"}>${d}</button>`
+        }
+        if (!any)
+          cells += `<p class="empty-month">Nothing free this month. Try the next one.</p>`
+        return `<section class="page">
+    <div class="month"><h2>${monthName(y, m)}</h2>
+      <div class="nav"><button class="icon-btn" data-shift="-1" aria-label="Previous month" ${ahead <= 0 ? "disabled" : ""}>‹</button>
+      <button class="icon-btn" data-shift="1" aria-label="Next month" ${ahead >= maxAhead ? "disabled" : ""}>›</button></div></div>
+    <div class="grid">${cells}</div>
+    <div class="zone"><label for="tz">Show times for</label>
+      <select id="tz">${ZONES.map((z) => `<option value="${z.value}" ${z.value === state.tz ? "selected" : ""}>${z.label}</option>`).join("")}</select>
+      <span class="clock" id="clock"></span></div>
+  </section>`
+      }
+
+      const dayPage = () => {
+        const slots = state.date
+          ? AVAILABILITY.get(state.date)
+          : AVAILABILITY.values().next().value
+        const hours = slots.map((s) => hourIn(s, state.tz))
+        const start = Math.floor(Math.min(...hours)) - 1
+        const end = Math.ceil(Math.max(...hours) + 0.5) + 1
+        let rows = ""
+        for (let h = start; h < end; h++)
+          rows += `<div class="hour"><span>${pad(((h % 24) + 24) % 24)}:00</span></div>`
+        const blocks = slots
+          .map((s) => {
+            const top =
+              (hourIn(s, state.tz) - start) *
+              parseFloat(
+                getComputedStyle(document.documentElement).getPropertyValue(
+                  "--row"
+                )
+              )
+            return `<button class="slot" style="top:${top + 1}px" data-slot="${s}" aria-pressed="${s === state.slot}" ${state.date ? "" : "disabled"}>
+      ${fmtTime(s, state.tz)} – ${fmtTime(endOf(s), state.tz)}<small>${s === state.slot ? "Chosen" : ""}</small></button>`
+          })
+          .join("")
+        return `<section class="page">
+    ${
+      state.date
+        ? `<h2 class="day-title">${longDate(state.date).replace(/ \d{4}$/, "")}</h2><p class="day-sub">${slots.length} free ${slots.length === 1 ? "slot" : "slots"}, shown in ${zoneCity(state.tz)} time</p>`
+        : `<p class="empty-note">Choose a day to see its free times.</p>`
+    }
+    <div class="timeline">${rows}${blocks}</div>
+    <div class="actions"><button class="btn" id="next" ${state.slot ? "" : "disabled"}>${state.slot ? `Continue with ${fmtTime(state.slot, state.tz)}` : "Continue"}</button></div>
+  </section>`
+      }
+
+      const entry = (withBack) => {
+        const d = fromIso(state.date)
+        return `<section class="page">
+    <div class="entry"><span class="num">${d.getDate()}</span>
+      <span class="wk">${d.toLocaleDateString("en-GB", { weekday: "long" })}</span>
+      <span class="mo">${d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</span></div>
+    <p class="when"><mark>${fmtTime(state.slot, state.tz)} – ${fmtTime(endOf(state.slot), state.tz)}</mark></p>
+    <p class="meta">${zoneLabel(state.tz)} time, on Google Meet</p>
+    ${withBack ? `<p class="note">Once you confirm, you'll shortly receive an email with the Google Meet link.</p>` : ""}
+    ${withBack ? `<div class="actions" style="justify-content:flex-start"><button class="link" id="back">Change day or time</button></div>` : ""}
+  </section>`
+      }
+
+      const field = (id, label, type) => {
+        const err = state.errors[id]
+        const control =
+          type === "textarea"
+            ? `<textarea id="${id}" rows="4" aria-invalid="${!!err}">${esc(state.contact[id])}</textarea>`
+            : `<input id="${id}" type="${type}" value="${esc(state.contact[id])}" aria-invalid="${!!err}" autocomplete="${id}">`
+        return `<div class="field"><label for="${id}">${label}</label>${control}${err ? `<p class="err">${err}</p>` : ""}</div>`
+      }
+
+      const formPage = () => `<section class="page"><form id="form" novalidate>
+  ${field("name", "Your name", "text")}${field("email", "Email", "email")}${field("description", "What would you like to talk about?", "textarea")}
+  <div class="actions"><button class="btn" type="submit">Send booking request</button></div></form></section>`
+
+      const donePage = () => `<section class="page done">
+  <span class="stamp">Requested</span>
+  <h2>You're booked, ${esc(state.contact.name.split(" ")[0])}.</h2>
+  <p>Check your inbox: an email with the Google Meet link is on its way to <strong>${esc(state.contact.email)}</strong>.</p>
+  <p class="note">${esc(state.contact.description)}</p></section>`
+
+      const render = () => {
+        const html = {
+          pick: () => calendarPage() + dayPage(),
+          details: () => entry(true) + formPage(),
+          done: () => entry(false) + donePage(),
+        }[state.step]()
+        $("#pages").innerHTML = html
+        tick()
+      }
+      const tick = () => {
+        const c = $("#clock")
+        if (c) c.textContent = `It's ${fmtTime(Date.now(), state.tz)} there now`
+      }
+      setInterval(tick, 1000)
+
+      document.addEventListener("click", (e) => {
+        const t = e.target.closest("button")
+        if (!t) return
+        if (t.dataset.shift) {
+          const n = new Date(
+            state.view.y,
+            state.view.m + Number(t.dataset.shift),
+            1
+          )
+          state.view = { y: n.getFullYear(), m: n.getMonth() }
+          render()
+        }
+        if (t.dataset.date) {
+          state.date = t.dataset.date
+          state.slot = null
+          render()
+        }
+        if (t.dataset.slot) {
+          state.slot = Number(t.dataset.slot)
+          render()
+          $(`[data-slot="${state.slot}"]`).focus()
+        }
+        if (t.id === "next") {
+          state.step = "details"
+          render()
+          $("#name").focus()
+        }
+        if (t.id === "back") {
+          state.step = "pick"
+          render()
+        }
+      })
+      document.addEventListener("change", (e) => {
+        if (e.target.id === "tz") {
+          state.tz = e.target.value
+          render()
+        }
+      })
+      document.addEventListener("input", (e) => {
+        if (e.target.id in state.contact)
+          state.contact[e.target.id] = e.target.value
+      })
+      document.addEventListener("submit", (e) => {
+        e.preventDefault()
+        state.errors = validate(state.contact)
+        if (Object.keys(state.errors).length) {
+          render()
+          $(`#${Object.keys(state.errors)[0]}`).focus()
+          return
+        }
+        state.step = "done"
+        render()
+      })
+      render()
+    </script>
+  </body>
+</html>

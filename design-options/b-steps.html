@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Book a Meeting — Steps</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --cobalt: #2b3bcf;
+        --cobalt-deep: #1e2aa3;
+        --panel: #ffffff;
+        --ink: #15173b;
+        --muted: #5e6290;
+        --lav: #eceefe;
+        --line: #daddf7;
+        --apricot: #ffb482;
+        --error: #c0262d;
+        --font: "Bricolage Grotesque", system-ui, sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --cobalt: #1b2690;
+          --cobalt-deep: #121a66;
+          --panel: #16183a;
+          --ink: #eef0ff;
+          --muted: #a4a8d6;
+          --lav: #23265a;
+          --line: #2f336e;
+          --apricot: #ffb482;
+          --error: #ff8e8e;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        font-family: var(--font);
+        background: var(--cobalt);
+        color: var(--ink);
+      }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        padding: 56px 16px;
+        display: flex;
+        justify-content: center;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 3px solid var(--apricot);
+        outline-offset: 2px;
+      }
+
+      .col {
+        width: min(560px, 100%);
+      }
+      .hero {
+        color: #fff;
+        margin-bottom: 28px;
+      }
+      .hero h1 {
+        font-size: clamp(44px, 9vw, 72px);
+        line-height: 0.92;
+        font-weight: 800;
+        font-variation-settings: "wdth" 75;
+        letter-spacing: -0.02em;
+        margin: 0 0 16px;
+      }
+      .hero p {
+        margin: 0;
+        font-size: 17px;
+        opacity: 0.85;
+        max-width: 40ch;
+      }
+
+      .panel {
+        background: var(--panel);
+        border-radius: 28px;
+        padding: 8px;
+      }
+      .step {
+        border-radius: 22px;
+        padding: 20px 20px 22px;
+      }
+      .step + .step {
+        margin-top: 4px;
+      }
+      .step.open {
+        background: var(--panel);
+      }
+      .step.done,
+      .step.locked {
+        padding-block: 16px;
+      }
+      .step-head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .n {
+        flex: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 15px;
+        background: var(--lav);
+        color: var(--ink);
+      }
+      .open .n {
+        background: var(--ink);
+        color: var(--panel);
+      }
+      .done .n {
+        background: var(--apricot);
+        color: #15173b;
+      }
+      .step-head h2 {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0;
+        flex: 1;
+      }
+      .locked .step-head h2 {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .chosen {
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .change {
+        border: 0;
+        background: none;
+        color: var(--cobalt);
+        font-weight: 600;
+        cursor: pointer;
+        padding: 6px 4px;
+      }
+      @media (prefers-color-scheme: dark) {
+        .change {
+          color: var(--apricot);
+        }
+      }
+      .body {
+        margin-top: 18px;
+        padding-left: 46px;
+      }
+
+      /* Week strip */
+      .week-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .week-bar strong {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .arrows {
+        display: flex;
+        gap: 6px;
+      }
+      .arrow {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 0;
+        background: var(--lav);
+        cursor: pointer;
+        font-size: 18px;
+      }
+      .arrow:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .week {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+      }
+      .tile {
+        border: 0;
+        border-radius: 16px;
+        background: var(--lav);
+        padding: 12px 4px 10px;
+        cursor: pointer;
+        display: grid;
+        gap: 2px;
+        justify-items: center;
+      }
+      .tile .wd {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .tile .d {
+        font-size: 30px;
+        font-weight: 700;
+        font-variation-settings: "wdth" 80;
+        line-height: 1;
+      }
+      .tile:hover:not(:disabled) {
+        outline: 2px solid var(--line);
+      }
+      .tile:disabled {
+        background: transparent;
+        box-shadow: inset 0 0 0 1px var(--line);
+        cursor: default;
+      }
+      .tile:disabled .d {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .tile[aria-pressed="true"] {
+        background: var(--ink);
+        color: var(--panel);
+      }
+      .tile[aria-pressed="true"] .wd {
+        color: inherit;
+        opacity: 0.7;
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 10px 0 0;
+      }
+
+      /* Times */
+      .tz {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 10px;
+        margin-bottom: 14px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .tz select {
+        border: 0;
+        background: var(--lav);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-weight: 600;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .times {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .time {
+        border: 0;
+        border-radius: 16px;
+        background: var(--lav);
+        padding: 14px 8px;
+        cursor: pointer;
+        text-align: center;
+      }
+      .time b {
+        display: block;
+        font-size: 28px;
+        font-weight: 700;
+        font-variation-settings: "wdth" 80;
+        font-variant-numeric: tabular-nums;
+      }
+      .time span {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .time:hover {
+        outline: 2px solid var(--line);
+      }
+      .time[aria-pressed="true"] {
+        background: var(--apricot);
+        color: #15173b;
+      }
+      .time[aria-pressed="true"] span {
+        color: inherit;
+        opacity: 0.75;
+      }
+
+      /* Form */
+      .field {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+      .field label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .field input,
+      .field textarea {
+        border: 2px solid var(--line);
+        border-radius: 14px;
+        background: transparent;
+        padding: 11px 14px;
+        font-size: 16px;
+        resize: vertical;
+      }
+      .field input:focus,
+      .field textarea:focus {
+        border-color: var(--cobalt);
+        outline: none;
+      }
+      @media (prefers-color-scheme: dark) {
+        .field input:focus,
+        .field textarea:focus {
+          border-color: var(--apricot);
+        }
+      }
+      .field [aria-invalid="true"] {
+        border-color: var(--error);
+      }
+      .err {
+        color: var(--error);
+        font-size: 13px;
+        margin: 0;
+      }
+      .fine {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 4px 0 16px;
+      }
+      .send {
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        background: var(--ink);
+        color: var(--panel);
+        padding: 16px;
+        font-size: 17px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      /* Success */
+      .success {
+        padding: 36px 28px 32px;
+        text-align: left;
+      }
+      .badge {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: var(--apricot);
+        display: grid;
+        place-items: center;
+        margin-bottom: 20px;
+      }
+      .success h2 {
+        font-size: 40px;
+        font-weight: 800;
+        font-variation-settings: "wdth" 75;
+        line-height: 1;
+        margin: 0 0 16px;
+      }
+      .ticket {
+        background: var(--lav);
+        border-radius: 18px;
+        padding: 16px 18px;
+        margin: 0 0 16px;
+        display: grid;
+        gap: 4px;
+      }
+      .ticket b {
+        font-size: 20px;
+      }
+      .success p {
+        margin: 0;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      @media (max-width: 480px) {
+        body {
+          padding-top: 32px;
+        }
+        .body {
+          padding-left: 0;
+        }
+        .week {
+          gap: 4px;
+        }
+        .tile .d {
+          font-size: 24px;
+        }
+        .time b {
+          font-size: 22px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .step.open .body {
+          animation: rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        @keyframes rise {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="col">
+      <header class="hero">
+        <h1>Book 30 minutes with Charly</h1>
+        <p>
+          A video call on Google Meet. Three quick steps, and the link lands in
+          your inbox.
+        </p>
+      </header>
+      <div class="panel" id="panel"></div>
+    </div>
+    <script>
+      // Mock of the app's availability: slots are Montreal wall-clock times shown in the visitor's zone.
+      const HOST_TZ = "America/Toronto"
+      const HOST_SLOTS = ["13:30", "15:30", "16:30"]
+      const MINUTES = 30
+      const ZONES = [
+        { value: "America/Toronto", label: "Montreal, Canada" },
+        { value: "America/Vancouver", label: "Vancouver, Canada" },
+        { value: "America/New_York", label: "New York, USA" },
+        { value: "America/Los_Angeles", label: "Los Angeles, USA" },
+        { value: "Europe/London", label: "London, UK" },
+        { value: "Europe/Paris", label: "Paris, France" },
+        { value: "Asia/Tokyo", label: "Tokyo, Japan" },
+      ]
+      const zoneLabel = (v) => ZONES.find((z) => z.value === v)?.label ?? v
+      const zoneCity = (v) => zoneLabel(v).split(",")[0]
+
+      const zoneOffset = (instant, tz) => {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          hourCycle: "h23",
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+          second: "numeric",
+        }).formatToParts(instant)
+        const get = (t) => Number(parts.find((p) => p.type === t)?.value)
+        const asUtc = Date.UTC(
+          get("year"),
+          get("month") - 1,
+          get("day"),
+          get("hour"),
+          get("minute"),
+          get("second")
+        )
+        return asUtc - Math.floor(instant / 1000) * 1000
+      }
+      const zonedInstant = (date, time, tz) => {
+        const [y, m, d] = date.split("-").map(Number)
+        const [h, min] = time.split(":").map(Number)
+        const guess = Date.UTC(y, m - 1, d, h, min)
+        const first = guess - zoneOffset(guess, tz)
+        return guess - zoneOffset(first, tz)
+      }
+
+      const pad = (n) => String(n).padStart(2, "0")
+      const iso = (d) =>
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      const fromIso = (s) => {
+        const [y, m, d] = s.split("-").map(Number)
+        return new Date(y, m - 1, d)
+      }
+      const fmtTime = (ms, tz) =>
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: tz,
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(ms)
+      const hourIn = (ms, tz) => {
+        const [h, m] = fmtTime(ms, tz).split(":").map(Number)
+        return h + m / 60
+      }
+      const endOf = (ms) => ms + MINUTES * 60000
+      const longDate = (key) =>
+        fromIso(key).toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      const shortDate = (key) =>
+        fromIso(key).toLocaleDateString("en-GB", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+        })
+      const monthName = (y, m) =>
+        new Date(y, m, 1).toLocaleDateString("en-GB", {
+          month: "long",
+          year: "numeric",
+        })
+
+      // Weekdays from the day after tomorrow to the end of the month three months out; some days are full.
+      const AVAILABILITY = (() => {
+        const map = new Map()
+        const t = new Date()
+        const end = new Date(t.getFullYear(), t.getMonth() + 4, 0)
+        for (
+          let d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 2);
+          d <= end;
+          d.setDate(d.getDate() + 1)
+        ) {
+          if (d.getDay() === 0 || d.getDay() === 6) continue
+          const key = iso(d)
+          const seed = (d.getDate() * 7 + d.getMonth() * 3) % 11
+          if (seed === 0) continue
+          const slots = HOST_SLOTS.filter((_, i) => (seed + i) % 5 !== 0).map(
+            (time) => zonedInstant(key, time, HOST_TZ)
+          )
+          if (slots.length) map.set(key, slots)
+        }
+        return map
+      })()
+
+      const validate = ({ name, email, description }) => {
+        const errors = {}
+        if (!name.trim()) errors.name = "Enter your name."
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+          errors.email = "Enter an email address like name@example.com."
+        if (!description.trim())
+          errors.description =
+            "Say a few words about what you'd like to discuss."
+        return errors
+      }
+      const esc = (s) =>
+        s.replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c]
+        )
+
+      const state = {
+        step: 1,
+        date: null,
+        slot: null,
+        tz: HOST_TZ,
+        contact: { name: "", email: "", description: "" },
+        errors: {},
+        sent: false,
+      }
+      const $ = (s) => document.querySelector(s)
+      const keys = [...AVAILABILITY.keys()]
+      const monday = (d) => {
+        const x = fromIso(iso(d))
+        x.setDate(x.getDate() - ((x.getDay() + 6) % 7))
+        return x
+      }
+      const firstWeek = monday(fromIso(keys[0]))
+      const lastWeek = monday(fromIso(keys.at(-1)))
+      state.week = new Date(firstWeek)
+
+      const weekStrip = () => {
+        const days = Array.from({ length: 5 }, (_, i) => {
+          const d = new Date(state.week)
+          d.setDate(d.getDate() + i)
+          return iso(d)
+        })
+        const fri = fromIso(days[4])
+        const label =
+          state.week.getMonth() === fri.getMonth()
+            ? monthName(fri.getFullYear(), fri.getMonth())
+            : `${state.week.toLocaleDateString("en-GB", { month: "short" })} – ${fri.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}`
+        return `<div class="week-bar"><strong>${label}</strong><div class="arrows">
+      <button class="arrow" data-week="-1" aria-label="Previous week" ${state.week <= firstWeek ? "disabled" : ""}>‹</button>
+      <button class="arrow" data-week="1" aria-label="Next week" ${state.week >= lastWeek ? "disabled" : ""}>›</button></div></div>
+    <div class="week">${days
+      .map((k) => {
+        const d = fromIso(k)
+        return `<button class="tile" data-date="${k}" aria-pressed="${k === state.date}" ${AVAILABILITY.has(k) ? "" : "disabled"}>
+      <span class="wd">${d.toLocaleDateString("en-GB", { weekday: "short" })}</span><span class="d">${d.getDate()}</span></button>`
+      })
+      .join("")}</div>
+    ${days.some((k) => AVAILABILITY.has(k)) ? "" : `<p class="hint">This week is full. Try the next one.</p>`}`
+      }
+
+      const timeGrid = () => `<div class="tz"><label for="tz">Times in</label>
+    <select id="tz">${ZONES.map((z) => `<option value="${z.value}" ${z.value === state.tz ? "selected" : ""}>${z.label}</option>`).join("")}</select>
+    <span id="clock"></span></div>
+  <div class="times">${AVAILABILITY.get(state.date)
+    .map(
+      (
+        s
+      ) => `<button class="time" data-slot="${s}" aria-pressed="${s === state.slot}">
+    <b>${fmtTime(s, state.tz)}</b><span>until ${fmtTime(endOf(s), state.tz)}</span></button>`
+    )
+    .join("")}</div>`
+
+      const field = (id, label, type) => {
+        const err = state.errors[id]
+        const control =
+          type === "textarea"
+            ? `<textarea id="${id}" rows="3" aria-invalid="${!!err}">${esc(state.contact[id])}</textarea>`
+            : `<input id="${id}" type="${type}" value="${esc(state.contact[id])}" aria-invalid="${!!err}" autocomplete="${id}">`
+        return `<div class="field"><label for="${id}">${label}</label>${control}${err ? `<p class="err">${err}</p>` : ""}</div>`
+      }
+      const details = () => `<form id="form" novalidate>
+  ${field("name", "Name", "text")}${field("email", "Email", "email")}${field("description", "What's it about?", "textarea")}
+  <p class="fine">Once you confirm, you'll shortly receive an email with the Google Meet link.</p>
+  <button class="send" type="submit">Book ${shortDate(state.date)} at ${fmtTime(state.slot, state.tz)}</button></form>`
+
+      const step = (n, title, chosen, body) => {
+        const cls =
+          state.step === n ? "open" : state.step > n ? "done" : "locked"
+        return `<section class="step ${cls}"><div class="step-head"><span class="n">${state.step > n ? "✓" : n}</span>
+    <h2>${state.step > n ? `<span class="chosen">${chosen}</span>` : title}</h2>
+    ${state.step > n ? `<button class="change" data-goto="${n}">Change</button>` : ""}</div>
+    ${cls === "open" ? `<div class="body">${body()}</div>` : ""}</section>`
+      }
+
+      const render = () => {
+        if (state.sent) {
+          $("#panel").innerHTML =
+            `<div class="success"><div class="badge"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#15173B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <h2>You're booked!</h2>
+      <div class="ticket"><b>${longDate(state.date)}</b><span>${fmtTime(state.slot, state.tz)} – ${fmtTime(endOf(state.slot), state.tz)}, ${zoneLabel(state.tz)} time</span></div>
+      <p>Check your inbox: an email with the Google Meet link is on its way to ${esc(state.contact.email)}.</p></div>`
+          return
+        }
+        $("#panel").innerHTML =
+          step(
+            1,
+            "Pick a day",
+            state.date && longDate(state.date).replace(/ \d{4}$/, ""),
+            weekStrip
+          ) +
+          step(
+            2,
+            "Pick a time",
+            state.slot &&
+              `${fmtTime(state.slot, state.tz)} – ${fmtTime(endOf(state.slot), state.tz)} (${zoneCity(state.tz)})`,
+            timeGrid
+          ) +
+          step(3, "Your details", "", details)
+        tick()
+      }
+      const tick = () => {
+        const c = $("#clock")
+        if (c) c.textContent = `now ${fmtTime(Date.now(), state.tz)}`
+      }
+      setInterval(tick, 1000)
+
+      document.addEventListener("click", (e) => {
+        const t = e.target.closest("button")
+        if (!t) return
+        if (t.dataset.week) {
+          state.week.setDate(state.week.getDate() + 7 * Number(t.dataset.week))
+          render()
+        }
+        if (t.dataset.date) {
+          state.date = t.dataset.date
+          state.slot = null
+          state.step = 2
+          render()
+          $(".time")?.focus()
+        }
+        if (t.dataset.slot) {
+          state.slot = Number(t.dataset.slot)
+          state.step = 3
+          render()
+          $("#name").focus()
+        }
+        if (t.dataset.goto) {
+          state.step = Number(t.dataset.goto)
+          if (state.step === 1) state.week = monday(fromIso(state.date))
+          render()
+        }
+      })
+      document.addEventListener("change", (e) => {
+        if (e.target.id === "tz") {
+          state.tz = e.target.value
+          render()
+          $("#tz").focus()
+        }
+      })
+      document.addEventListener("input", (e) => {
+        if (e.target.id in state.contact)
+          state.contact[e.target.id] = e.target.value
+      })
+      document.addEventListener("submit", (e) => {
+        e.preventDefault()
+        state.errors = validate(state.contact)
+        if (Object.keys(state.errors).length) {
+          render()
+          $(`#${Object.keys(state.errors)[0]}`).focus()
+          return
+        }
+        state.sent = true
+        render()
+      })
+      render()
+    </script>
+  </body>
+</html>
