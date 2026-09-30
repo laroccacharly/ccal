@@ -9,7 +9,7 @@ const PORT = 3100
 // Workers re-evaluate this file, so the default must be fixed rather than random.
 process.env.CCAL_API_KEY ??= "e2e-api-key"
 
-// The Worker talks to a stand-in for Google (src/e2e/google-stub.ts), never to Google itself. These fake credentials
+// The Worker talks to a stand-in for Google (tests/e2e/google-stub.ts), never to Google itself. These fake credentials
 // take precedence over .env and `ccal login`; the stub only accepts them.
 const GOOGLE_STUB_PORT = 3102
 const GOOGLE_ENV = {
@@ -21,7 +21,7 @@ const GOOGLE_ENV = {
 // For the tests, to read and steer the stub.
 process.env.GOOGLE_API_ORIGIN = GOOGLE_ENV.GOOGLE_API_ORIGIN
 
-// Likewise, the Worker emails the admin through a stand-in for cmail (src/e2e/cmail-stub.ts), never cmail itself.
+// Likewise, the Worker emails the admin through a stand-in for cmail (tests/e2e/cmail-stub.ts), never cmail itself.
 const CMAIL_STUB_PORT = 3103
 const CMAIL_ENV = {
   CMAIL_API_KEY: "e2e-cmail-api-key",
@@ -33,7 +33,7 @@ process.env.CMAIL_ORIGIN = CMAIL_ENV.CMAIL_ORIGIN
 process.env.ADMIN_EMAIL = CMAIL_ENV.ADMIN_EMAIL
 
 export default defineConfig({
-  testDir: "src/e2e",
+  testDir: "tests/e2e",
   testMatch: "*.test.ts",
   use: {
     baseURL: process.env.BASE_URL ?? `http://localhost:${PORT}`,
@@ -43,13 +43,13 @@ export default defineConfig({
       ? undefined
       : [
           {
-            command: "bun src/e2e/google-stub.ts",
+            command: "bun tests/e2e/google-stub.ts",
             url: `${GOOGLE_ENV.GOOGLE_API_ORIGIN}/stub/events`,
             env: { GOOGLE_STUB_PORT: String(GOOGLE_STUB_PORT), ...GOOGLE_ENV },
             reuseExistingServer: false,
           },
           {
-            command: "bun src/e2e/cmail-stub.ts",
+            command: "bun tests/e2e/cmail-stub.ts",
             url: `${CMAIL_ENV.CMAIL_ORIGIN}/stub/emails`,
             env: { CMAIL_STUB_PORT: String(CMAIL_STUB_PORT), ...CMAIL_ENV },
             reuseExistingServer: false,

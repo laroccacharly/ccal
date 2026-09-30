@@ -2,9 +2,9 @@ import { NodeServices } from "@effect/platform-node"
 import { defineConfig, devices } from "@playwright/test"
 import { Effect } from "effect"
 
-import { readSettings } from "../local/settings"
+import { readSettings } from "../../src/local/settings"
 
-// Smoke test of the deployed app (src/smoke): it books for real, so run it only when asked.
+// Smoke test of the deployed app (tests/smoke): it books for real, so run it only when asked.
 // It targets the URL saved with `ccal config --set-url`; set BASE_URL to test another deployment.
 const savedUrl = await Effect.runPromise(
   readSettings().pipe(

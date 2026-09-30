@@ -27,7 +27,7 @@ export default defineConfig({
   overrides: [
     {
       // Browser and API steps in end-to-end tests and the walkthrough must run one after another.
-      files: ["src/e2e/**", "video/**"],
+      files: ["tests/e2e/**", "video/**"],
       rules: { "no-await-in-loop": "off" },
     },
   ],

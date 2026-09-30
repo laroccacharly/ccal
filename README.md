@@ -32,4 +32,5 @@ ccal config --set-url=https://cal.example.com  # the URL the app is deployed to
 bun dev             # run locally on http://localhost:1337
 bun test:e2e        # end-to-end tests
 bun run deploy      # deploy to Cloudflare (attaches the configured URL as a custom domain)
+bun run test:smoke  # smoke test against the deployed app
 ```
