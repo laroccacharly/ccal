@@ -85,5 +85,11 @@
 
 - Every test acts as its own client, so tests never use up each other's request budget
 - Assert a client can make 10 requests to the server's API within 60 seconds, whatever the route or outcome
+- The version API is exempt: it is cheap, and checked repeatedly right after a deploy
 - Assert the 11th request within those 60 seconds is rejected with "Too Many Requests" (429) and says when to retry
 - Assert another client is not affected
+- Assert a client that used up its budget can still call the version API
+
+# Version
+
+- Assert the server's version API returns the id, tag and timestamp of the Worker version serving it, without an API key

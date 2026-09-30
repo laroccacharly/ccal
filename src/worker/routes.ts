@@ -15,6 +15,7 @@ import {
   unfinishedMeeting,
 } from "./meetings"
 import { notifyAdmin } from "./notify"
+import { VERSION_PATH } from "./rate-limit"
 
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   "Unauthorized",
@@ -99,9 +100,21 @@ const retryMeetingsNow = Effect.gen(function* retryMeetingsNow() {
   })
 })
 
-export const routes = Layer.mergeAll(
-  HttpRouter.add("GET", "/api/availability", availability),
-  HttpRouter.add("POST", "/api/booking-requests", createBookingRequest),
-  HttpRouter.add("GET", "/api/booking-requests", bookingRequests),
-  HttpRouter.add("POST", "/api/meetings/retry", retryMeetingsNow)
-)
+// The Worker version serving this request (id, tag and timestamp), e.g. to wait for a deploy to be live.
+const version = Effect.fn("version")(function* version(
+  versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
+) {
+  const { id, tag, timestamp } = yield* versionMetadata
+  return yield* HttpServerResponse.json({ id, tag, timestamp })
+})
+
+export const routes = (
+  versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
+) =>
+  Layer.mergeAll(
+    HttpRouter.add("GET", "/api/availability", availability),
+    HttpRouter.add("POST", "/api/booking-requests", createBookingRequest),
+    HttpRouter.add("GET", "/api/booking-requests", bookingRequests),
+    HttpRouter.add("POST", "/api/meetings/retry", retryMeetingsNow),
+    HttpRouter.add("GET", VERSION_PATH, version(versionMetadata))
+  )

@@ -76,7 +76,8 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
   Effect.gen(function* worker() {
     const d1 = yield* Cloudflare.D1.QueryDatabase(yield* Database)
     const limiter = yield* RateLimiter
-    const handleFetch = yield* HttpRouter.toHttpEffect(routes)
+    const versionMetadata = yield* Cloudflare.Workers.VersionMetadata()
+    const handleFetch = yield* HttpRouter.toHttpEffect(routes(versionMetadata))
     const services = Layer.mergeAll(SQL.D1Layer(d1), FetchHttpClient.layer)
     yield* Cloudflare.Workers.cron(RETRY_CRON, (controller) =>
       retryMeetings(controller.scheduledTime).pipe(Effect.provide(services))
@@ -118,6 +119,7 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
     Effect.provide([
       Cloudflare.D1.QueryDatabaseBinding,
       Cloudflare.Workers.RateLimitBinding,
+      Cloudflare.Workers.VersionMetadataBinding,
       Cloudflare.Workers.CronEventSourceLive,
     ])
   )

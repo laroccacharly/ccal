@@ -26,6 +26,7 @@
 // The UI loads the bookable days and slots from GET /api/availability on the same origin, and only offers those.
 // Clicking "OK" POSTs the booking to /api/booking-requests on the same origin as the UI.
 // GET /api/booking-requests?email= reads back what was stored; it requires "Authorization: Bearer $CCAL_API_KEY".
+// GET /api/version returns the serving Worker version ({ id, tag, timestamp }), and is exempt from the rate limit.
 // GET /api/booking-requests also returns each booking's Google Meet (`meeting`), which the Worker creates in the background.
 // The Worker reaches "Google" at GOOGLE_API_ORIGIN, a stub (google-stub.ts) whose /stub/* routes list the events it
 // created and make it fail for an attendee. POST /api/meetings/retry (with the API key) retries unfinished meetings now.
@@ -1175,5 +1176,33 @@ test.describe("Rate limiting", () => {
       },
     })
     expect(other.status()).toBe(200)
+  })
+
+  test("a client that used up its budget can still call the version API", async ({
+    request,
+  }, testInfo) => {
+    const headers = { "CF-Connecting-IP": newClient(testInfo) }
+    for (let i = 0; i <= RATE_LIMIT; i += 1) {
+      await request.get("/api/booking-requests", { headers })
+    }
+    const limited = await request.get("/api/booking-requests", { headers })
+    expect(limited.status()).toBe(429)
+
+    const version = await request.get("/api/version", { headers })
+    expect(version.status()).toBe(200)
+  })
+})
+
+test.describe("Version", () => {
+  test("the version API returns the serving Worker version, without an API key", async ({
+    request,
+  }) => {
+    const response = await request.get("/api/version")
+    expect(response.status()).toBe(200)
+    expect(await response.json()).toEqual({
+      id: expect.stringMatching(/.+/u),
+      tag: expect.any(String),
+      timestamp: expect.any(String),
+    })
   })
 })
