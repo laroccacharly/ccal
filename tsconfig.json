@@ -8,7 +8,19 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["alchemy.run.ts", "src/shared", "src/cli", "src/local", "src/e2e", "playwright.config.ts", "oxlint.config.ts"]
+  "include": [
+    "alchemy.run.ts",
+    "src/shared",
+    "src/cli",
+    "src/local",
+    "src/e2e",
+    "playwright.config.ts",
+    "oxlint.config.ts",
+    "oxlint.effect.ts",
+    "video",
+    "oxfmt.config.ts"
+  ]
 }

@@ -1,5 +1,6 @@
-import { GoogleError, refreshAccessToken, TokenResponse } from "@ccal/shared/google"
-import { Effect, FileSystem, Path, Schema } from "effect"
+import type { TokenResponse } from "@ccal/shared/google"
+import { GoogleError, refreshAccessToken } from "@ccal/shared/google"
+import { Effect, FileSystem, Option, Path, Schema } from "effect"
 
 import { googleLoginPath } from "./paths"
 
@@ -13,17 +14,29 @@ export class GoogleLogin extends Schema.Class<GoogleLogin>("GoogleLogin")({
 
 const GoogleLoginJson = Schema.fromJsonString(GoogleLogin, { space: 2 })
 
-export const saveGoogleLogin = Effect.fn("saveGoogleLogin")(function* saveGoogleLogin(login: GoogleLogin) {
-  const fs = yield* FileSystem.FileSystem
-  const path = yield* Path.Path
-  const destination = yield* googleLoginPath()
-  yield* fs.makeDirectory(path.dirname(destination), { recursive: true, mode: 0o700 })
-  yield* fs.writeFileString(destination, yield* Schema.encodeEffect(GoogleLoginJson)(login), { mode: 0o600 })
-})
+export const saveGoogleLogin = Effect.fn("saveGoogleLogin")(
+  function* saveGoogleLogin(login: GoogleLogin) {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+    const destination = yield* googleLoginPath()
+    yield* fs.makeDirectory(path.dirname(destination), {
+      recursive: true,
+      mode: 0o700,
+    })
+    yield* fs.writeFileString(
+      destination,
+      yield* Schema.encodeEffect(GoogleLoginJson)(login),
+      { mode: 0o600 }
+    )
+  }
+)
 
 const expiresAt = (expiresIn: number) => Date.now() + expiresIn * 1000
 
-export const googleLoginFromResponse = (body: typeof TokenResponse.Type, email?: string) =>
+export const googleLoginFromResponse = (
+  body: typeof TokenResponse.Type,
+  email?: string
+) =>
   new GoogleLogin({
     access_token: body.access_token,
     refresh_token: body.refresh_token ?? "",
@@ -31,23 +44,47 @@ export const googleLoginFromResponse = (body: typeof TokenResponse.Type, email?:
     email,
   })
 
-/** The saved login, or undefined when there is none. */
+/** The saved login, if there is one. */
 export const readGoogleLogin = Effect.gen(function* readGoogleLogin() {
   const fs = yield* FileSystem.FileSystem
   const path = yield* googleLoginPath()
-  if (!(yield* fs.exists(path))) return undefined
-  return yield* Schema.decodeUnknownEffect(GoogleLoginJson)(yield* fs.readFileString(path)).pipe(
-    Effect.mapError(() => new GoogleError({ detail: "The saved login is invalid. Run `ccal login` again." })),
+  if (!(yield* fs.exists(path))) {
+    return Option.none<GoogleLogin>()
+  }
+  return yield* Schema.decodeUnknownEffect(GoogleLoginJson)(
+    yield* fs.readFileString(path)
+  ).pipe(
+    Effect.mapError(
+      () =>
+        new GoogleError({
+          detail: "The saved login is invalid. Run `ccal login` again.",
+        })
+    ),
+    Effect.map(Option.some)
   )
 })
 
 /** A valid access token, refreshed and saved again when it is about to expire. */
 export const accessToken = Effect.gen(function* accessToken() {
-  const login = yield* readGoogleLogin
-  if (login === undefined) return yield* new GoogleError({ detail: "Not logged in. Run `ccal login` first." })
-  if (Date.now() < login.expires_at - 60_000) return login.access_token
+  const saved = yield* readGoogleLogin
+  if (Option.isNone(saved)) {
+    return yield* new GoogleError({
+      detail: "Not logged in. Run `ccal login` first.",
+    })
+  }
+  const login = saved.value
+  if (Date.now() < login.expires_at - 60_000) {
+    return login.access_token
+  }
 
   const body = yield* refreshAccessToken(login.refresh_token)
-  yield* saveGoogleLogin(new GoogleLogin({ ...login, access_token: body.access_token, expires_at: expiresAt(body.expires_in) }))
+  yield* saveGoogleLogin(
+    new GoogleLogin({
+      refresh_token: login.refresh_token,
+      email: login.email,
+      access_token: body.access_token,
+      expires_at: expiresAt(body.expires_in),
+    })
+  )
   return body.access_token
 })

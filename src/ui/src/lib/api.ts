@@ -5,13 +5,21 @@ import type { Booking } from "@/pages/booking-page"
 // The API is served by the same Worker as the UI, so requests are same-origin.
 
 // The days and slots that can be booked; the server decides, the UI only displays them.
-export async function getAvailability() {
+export const getAvailability = async () => {
   const response = await fetch("/api/availability")
-  if (!response.ok) throw new Error(`Loading availability failed (${response.status})`)
-  return (await response.json()) as Availability
+  if (!response.ok) {
+    throw new Error(`Loading availability failed (${response.status})`)
+  }
+  const body: unknown = await response.json()
+  // SAFETY: the Worker serves this route from the same shared Availability type.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return body as Availability
 }
 
-export async function postBookingRequest(booking: Booking, contact: Contact) {
+export const postBookingRequest = async (
+  booking: Booking,
+  contact: Contact
+) => {
   const response = await fetch("/api/booking-requests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -21,5 +29,7 @@ export async function postBookingRequest(booking: Booking, contact: Contact) {
       ...contact,
     } satisfies BookingRequest),
   })
-  if (!response.ok) throw new Error(`Booking request failed (${response.status})`)
+  if (!response.ok) {
+    throw new Error(`Booking request failed (${response.status})`)
+  }
 }

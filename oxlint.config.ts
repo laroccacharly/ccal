@@ -1,21 +1,34 @@
 import { defineConfig } from "oxlint"
+import antiSlop from "ultracite/oxlint/anti-slop"
+import core from "ultracite/oxlint/core"
+import react from "ultracite/oxlint/react"
+
+import effect from "./oxlint.effect.ts"
 
 export default defineConfig({
-  plugins: ["typescript", "unicorn", "oxc", "react", "import"],
-  categories: {
-    correctness: "error",
-    suspicious: "warn",
+  extends: [core, react, antiSlop, effect],
+  ignorePatterns: [
+    ...(core.ignorePatterns ?? []),
+    "**/dist/**",
+    "test-results/**",
+    "playwright-report/**",
+  ],
+  options: {
+    typeAware: true,
+    typeCheck: true,
   },
   rules: {
-    "react/react-in-jsx-scope": "off",
-    "import/no-unassigned-import": ["warn", { allow: ["**/*.css"] }],
-    "unicorn/consistent-function-scoping": "off",
-    // Effect errors and unions are discriminated by `_tag`.
-    "no-underscore-dangle": ["warn", { allow: ["_tag"] }],
+    complexity: ["error", 15],
+    "max-classes-per-file": "off",
+    "max-depth": ["error", { max: 3 }],
+    "sort-keys": "off",
+    "unicorn/throw-new-error": "off",
   },
-  env: {
-    builtin: true,
-    browser: true,
-  },
-  ignorePatterns: ["**/dist/**", "test-results/**", "playwright-report/**"],
+  overrides: [
+    {
+      // Browser and API steps in end-to-end tests and the walkthrough must run one after another.
+      files: ["src/e2e/**", "video/**"],
+      rules: { "no-await-in-loop": "off" },
+    },
+  ],
 })

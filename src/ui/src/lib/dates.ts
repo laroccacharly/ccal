@@ -1,20 +1,21 @@
-export function isoDate(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
+const pad = (n: number) => String(n).padStart(2, "0")
 
-export function fromIsoDate(date: string) {
+export const isoDate = (date: Date) =>
+  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+
+export const fromIsoDate = (date: string) => {
   const [year, month, day] = date.split("-").map(Number)
-  return new Date(year!, month! - 1, day!)
+  return new Date(year, month - 1, day)
 }
 
 // "October 1 2026"
-export function formatSelectedDate(date: string) {
+export const formatSelectedDate = (date: string) => {
   const d = fromIsoDate(date)
   return `${d.toLocaleString("en-US", { month: "long" })} ${d.getDate()} ${d.getFullYear()}`
 }
 
-export function monthLabel(year: number, month: number) {
-  return new Date(year, month, 1).toLocaleString("en-US", { month: "long", year: "numeric" })
-}
-
+export const monthLabel = (year: number, month: number) =>
+  new Date(year, month, 1).toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  })

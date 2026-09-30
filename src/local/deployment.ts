@@ -1,11 +1,13 @@
-import { Config, ConfigProvider, Effect } from "effect"
+import { Config, ConfigProvider, Effect, Option } from "effect"
 
 import { readGoogleLogin } from "./google-login"
 import { readSettings } from "./settings"
 
 // Alchemy props may only fail with a ConfigError.
 const toConfigError = (error: { readonly message: string }) =>
-  new Config.ConfigError(new ConfigProvider.SourceError({ message: error.message }))
+  new Config.ConfigError(
+    new ConfigProvider.SourceError({ message: error.message })
+  )
 
 /**
  * The custom domain Alchemy attaches to the Worker: the host of the saved URL. None when no URL is
@@ -13,9 +15,10 @@ const toConfigError = (error: { readonly message: string }) =>
  */
 const customDomain = Effect.gen(function* customDomain() {
   const { url } = yield* readSettings()
-  if (url === undefined) return undefined
-  const { hostname } = new URL(url)
-  return hostname.endsWith(".workers.dev") ? undefined : hostname
+  const hostname = url === undefined ? undefined : new URL(url).hostname
+  return hostname === undefined || hostname.endsWith(".workers.dev")
+    ? undefined
+    : hostname
 })
 
 /**
@@ -26,10 +29,14 @@ const customDomain = Effect.gen(function* customDomain() {
 export const deploymentConfig = ConfigProvider.layerAdd(
   Effect.gen(function* deploymentConfig() {
     const domain = yield* customDomain
-    const refreshToken = (yield* readGoogleLogin)?.refresh_token
-    return ConfigProvider.fromUnknown({
-      ...(domain ? { CCAL_DOMAIN: domain } : {}),
-      ...(refreshToken ? { GOOGLE_REFRESH_TOKEN: refreshToken } : {}),
-    })
-  }).pipe(Effect.mapError(toConfigError)),
+    const login = yield* readGoogleLogin
+    const config: Record<string, string> = {}
+    if (domain !== undefined) {
+      config.CCAL_DOMAIN = domain
+    }
+    if (Option.isSome(login) && login.value.refresh_token !== "") {
+      config.GOOGLE_REFRESH_TOKEN = login.value.refresh_token
+    }
+    return ConfigProvider.fromUnknown(config)
+  }).pipe(Effect.mapError(toConfigError))
 )

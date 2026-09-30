@@ -1,29 +1,63 @@
-import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
+import {
+  HashRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router"
 
-import { BookingPage, type Booking } from "@/pages/booking-page"
+import { BookingPage } from "@/pages/booking-page"
+import type { Booking } from "@/pages/booking-page"
 import { ConfirmationPage } from "@/pages/confirmation-page"
-import { SuccessPage, type ConfirmedBooking } from "@/pages/success-page"
+import { SuccessPage } from "@/pages/success-page"
+import type { ConfirmedBooking } from "@/pages/success-page"
+
+// The booking carried over from the previous step, or null when the page is opened directly.
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- T names the state the caller expects
+const useStepState = <T,>(): T | null => {
+  const state: unknown = useLocation().state
+  // SAFETY: only the previous step's navigate() sets location state, and it sets a T.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return state as T | null
+}
 
 const FormRoute = () => {
   const navigate = useNavigate()
-  return <BookingPage onConfirm={(booking) => navigate("/confirm", { state: booking })} />
+  return (
+    <BookingPage
+      onConfirm={(booking) => {
+        void navigate("/confirm", { state: booking })
+      }}
+    />
+  )
 }
 
 const ConfirmRoute = () => {
   const navigate = useNavigate()
-  const booking = useLocation().state as Booking | null
-  if (!booking) return <Navigate to="/form" replace />
+  const booking = useStepState<Booking>()
+  if (booking === null) {
+    return <Navigate to="/form" replace />
+  }
   return (
     <ConfirmationPage
       booking={booking}
-      onConfirm={(contact) => navigate("/success", { state: { ...booking, ...contact } satisfies ConfirmedBooking })}
+      onConfirm={(contact) => {
+        void navigate("/success", {
+          state: { ...booking, ...contact } satisfies ConfirmedBooking,
+        })
+      }}
     />
   )
 }
 
 const SuccessRoute = () => {
-  const booking = useLocation().state as ConfirmedBooking | null
-  return booking ? <SuccessPage booking={booking} /> : <Navigate to="/form" replace />
+  const booking = useStepState<ConfirmedBooking>()
+  return booking === null ? (
+    <Navigate to="/form" replace />
+  ) : (
+    <SuccessPage booking={booking} />
+  )
 }
 
 export const App = () => (

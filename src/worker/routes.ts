@@ -2,18 +2,36 @@ import type { BookingRequest } from "@ccal/shared"
 import { TIME_ZONES, availabilityAt, findSlot } from "@ccal/shared/availability"
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Clock, Config, Effect, Layer, Redacted, Schema } from "effect"
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
+import {
+  HttpRouter,
+  HttpServerRequest,
+  HttpServerResponse,
+} from "effect/unstable/http"
 
 import { insertBookingRequest, listBookingRequests } from "./bookings"
-import { createBookingMeeting, retryMeetings, unfinishedMeeting } from "./meetings"
+import {
+  createBookingMeeting,
+  retryMeetings,
+  unfinishedMeeting,
+} from "./meetings"
 
-export class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthorized", {}) {}
+export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
+  "Unauthorized",
+  {}
+) {}
 
-export class SlotUnavailable extends Schema.TaggedError<SlotUnavailable>()("SlotUnavailable", {}) {}
+export class SlotUnavailable extends Schema.TaggedError<SlotUnavailable>()(
+  "SlotUnavailable",
+  {}
+) {}
 
 const BookingRequestBody = Schema.Struct({
   startsAt: Schema.NonEmptyString,
-  timeZone: Schema.String.check(Schema.makeFilter((zone) => TIME_ZONES.some((offered) => offered.value === zone))),
+  timeZone: Schema.String.check(
+    Schema.makeFilter((zone) =>
+      TIME_ZONES.some((offered) => offered.value === zone)
+    )
+  ),
   name: Schema.NonEmptyString,
   email: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
@@ -25,7 +43,9 @@ const BookingSearchParams = Schema.Struct({
 
 // The days and time slots the UI offers. The Worker decides what is bookable; the UI only displays it.
 const availability = Effect.gen(function* availability() {
-  return yield* HttpServerResponse.json(availabilityAt(yield* Clock.currentTimeMillis))
+  return yield* HttpServerResponse.json(
+    availabilityAt(yield* Clock.currentTimeMillis)
+  )
 })
 
 // Only a slot from the current availability can be booked; it is stored in its normalized ISO form.
@@ -40,7 +60,9 @@ const createBookingRequest = Effect.gen(function* createBookingRequest() {
   const meeting = yield* unfinishedMeeting(booking.id)
   if (meeting !== undefined) {
     const context = yield* Cloudflare.Workers.WorkerExecutionContext
-    yield* context.waitUntil(createBookingMeeting(meeting).pipe(Effect.catchCause(Effect.logError)))
+    yield* context.waitUntil(
+      createBookingMeeting(meeting).pipe(Effect.catchCause(Effect.logError))
+    )
   }
   return yield* HttpServerResponse.json(booking, { status: 201 })
 })
@@ -49,14 +71,15 @@ const requireApiKey = Effect.gen(function* requireApiKey() {
   const apiKey = yield* Config.Redacted("CCAL_API_KEY")
   const request = yield* HttpServerRequest.HttpServerRequest
   if (request.headers.authorization !== `Bearer ${Redacted.value(apiKey)}`) {
-    return yield* new Unauthorized()
+    yield* new Unauthorized()
   }
 })
 
 // Lists stored bookings (optionally by ?email=), each with its meeting. Public POST is how the UI books; reading requires CCAL_API_KEY.
 const bookingRequests = Effect.gen(function* bookingRequests() {
   yield* requireApiKey
-  const params = yield* HttpServerRequest.schemaSearchParams(BookingSearchParams)
+  const params =
+    yield* HttpServerRequest.schemaSearchParams(BookingSearchParams)
   const bookings = yield* listBookingRequests(params.email)
   return yield* HttpServerResponse.json(bookings)
 })
@@ -75,5 +98,5 @@ export const routes = Layer.mergeAll(
   HttpRouter.add("GET", "/api/availability", availability),
   HttpRouter.add("POST", "/api/booking-requests", createBookingRequest),
   HttpRouter.add("GET", "/api/booking-requests", bookingRequests),
-  HttpRouter.add("POST", "/api/meetings/retry", retryMeetingsNow),
+  HttpRouter.add("POST", "/api/meetings/retry", retryMeetingsNow)
 )

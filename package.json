@@ -2,21 +2,23 @@
   "name": "ccal",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
+  "bin": {
+    "ccal": "src/cli/index.ts"
+  },
   "workspaces": [
     "src/ui",
     "src/shared"
   ],
-  "bin": {
-    "ccal": "src/cli/index.ts"
-  },
+  "type": "module",
   "scripts": {
     "dev": "bun run build && alchemy dev",
     "build": "bun --filter ui build",
     "test:e2e": "playwright test",
-    "lint": "oxlint --deny-warnings",
+    "lint": "bun --bun oxlint .",
     "plan": "alchemy plan",
-    "deploy": "bun run build && alchemy deploy --yes"
+    "deploy": "bun run build && alchemy deploy --yes",
+    "lint:fix": "bun --bun oxlint . --fix",
+    "format": "oxfmt ."
   },
   "dependencies": {
     "@ccal/shared": "workspace:*",
@@ -30,12 +32,17 @@
     "@cloudflare/workers-types": "^5.20260929.1",
     "@playwright/test": "^1.63.0",
     "@types/bun": "latest",
-    "oxlint": "^1.86.0"
+    "oxfmt": "^0.71.0",
+    "oxlint": "^1.86.0",
+    "oxlint-plugin-anti-slop": "github:dmmulroy/anti-slop#c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b",
+    "oxlint-tsgolint": "^7.0.2003",
+    "ultracite": "^7.12.2"
   },
   "overrides": {
     "@effect/platform-node-shared": "4.0.0-rc.117",
     "@effect/sql-d1": "4.0.0-rc.117",
     "@effect/sql-sqlite-do": "4.0.0-rc.117",
-    "@effect/vitest": "4.0.0-rc.117"
+    "@effect/vitest": "4.0.0-rc.117",
+    "@oxlint/plugins": "$oxlint"
   }
 }

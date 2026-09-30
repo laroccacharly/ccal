@@ -11,9 +11,7 @@ A small booking app. Visitors pick a time slot on a web page and send a booking 
 ## Setup
 
 1. In the Google Cloud Console, create a project and enable the **Google Calendar API**.
-2. Configure the **OAuth consent screen** (External) and add your Google account as a test user.
-   While the app is in "Testing" mode, Google expires the login after 7 days. Publish it
-   ("In production") to keep it indefinitely.
+2. Configure the **OAuth consent screen** (External) and add your Google account as a test user. While the app is in "Testing" mode, Google expires the login after 7 days. Publish it ("In production") to keep it indefinitely.
 3. Create an **OAuth client ID** of type **Desktop app**.
 4. Copy `.env.example` to `.env` and fill it in:
    - Google OAuth client: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`

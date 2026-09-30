@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig } from "@playwright/test"
 
 export default defineConfig({
   testDir: ".",
@@ -14,9 +14,10 @@ export default defineConfig({
     launchOptions: { args: ["--force-device-scale-factor=1.5"] },
   },
   webServer: {
-    command: "bunx vite src/ui --config src/ui/vite.config.ts --host 127.0.0.1 --port 3101",
+    command:
+      "bunx vite src/ui --config src/ui/vite.config.ts --host 127.0.0.1 --port 3101",
     cwd: "..",
     url: "http://localhost:3101",
     reuseExistingServer: false,
   },
-});
+})
