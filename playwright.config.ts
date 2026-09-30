@@ -21,6 +21,17 @@ const GOOGLE_ENV = {
 // For the tests, to read and steer the stub.
 process.env.GOOGLE_API_ORIGIN = GOOGLE_ENV.GOOGLE_API_ORIGIN
 
+// Likewise, the Worker emails the admin through a stand-in for cmail (src/e2e/cmail-stub.ts), never cmail itself.
+const CMAIL_STUB_PORT = 3103
+const CMAIL_ENV = {
+  CMAIL_API_KEY: "e2e-cmail-api-key",
+  CMAIL_ORIGIN: `http://127.0.0.1:${CMAIL_STUB_PORT}`,
+  ADMIN_EMAIL: "admin@example.com",
+}
+// For the tests, to read and steer the stub, and to know where the admin email goes.
+process.env.CMAIL_ORIGIN = CMAIL_ENV.CMAIL_ORIGIN
+process.env.ADMIN_EMAIL = CMAIL_ENV.ADMIN_EMAIL
+
 export default defineConfig({
   testDir: "src/e2e",
   testMatch: "*.test.ts",
@@ -38,12 +49,19 @@ export default defineConfig({
             reuseExistingServer: false,
           },
           {
+            command: "bun src/e2e/cmail-stub.ts",
+            url: `${CMAIL_ENV.CMAIL_ORIGIN}/stub/emails`,
+            env: { CMAIL_STUB_PORT: String(CMAIL_STUB_PORT), ...CMAIL_ENV },
+            reuseExistingServer: false,
+          },
+          {
             command: "bun run build && bunx alchemy dev --stage e2e",
             url: `http://localhost:${PORT}`,
             env: {
               DEV_PORT: String(PORT),
               CCAL_API_KEY: process.env.CCAL_API_KEY,
               ...GOOGLE_ENV,
+              ...CMAIL_ENV,
             },
             reuseExistingServer: false,
             timeout: 120_000,

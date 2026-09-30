@@ -14,6 +14,17 @@ import { routes } from "./routes"
 export const Database = Cloudflare.D1.Database("Database", {
   migrations: "migrations",
 })
+// { [name]: value } when `name` is set, otherwise {}, so an unset variable is left out of the Worker's env.
+const optionalEnv = (name: string) =>
+  Config.option(Config.String(name)).pipe(
+    Config.map(
+      Option.match({
+        onNone: () => ({}),
+        onSome: (value) => ({ [name]: value }),
+      })
+    )
+  )
+
 const jsonError = (error: string, status: number) =>
   Effect.succeed(HttpServerResponse.jsonUnsafe({ error }, { status }))
 
@@ -53,14 +64,12 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
         GOOGLE_CLIENT_ID: yield* Config.String("GOOGLE_CLIENT_ID"),
         GOOGLE_CLIENT_SECRET: yield* Config.Redacted("GOOGLE_CLIENT_SECRET"),
         GOOGLE_REFRESH_TOKEN: yield* Config.Redacted("GOOGLE_REFRESH_TOKEN"),
-        // Only set by the end-to-end tests, to stand in for Google.
-        ...Option.match(
-          yield* Config.option(Config.String("GOOGLE_API_ORIGIN")),
-          {
-            onNone: () => ({}),
-            onSome: (origin) => ({ GOOGLE_API_ORIGIN: origin }),
-          }
-        ),
+        // To email ADMIN_EMAIL about each booking request, through cmail. Set both in .env or the environment.
+        CMAIL_API_KEY: yield* Config.Redacted("CMAIL_API_KEY"),
+        ADMIN_EMAIL: yield* Config.String("ADMIN_EMAIL"),
+        // Only set by the end-to-end tests, to stand in for Google and cmail.
+        ...(yield* optionalEnv("GOOGLE_API_ORIGIN")),
+        ...(yield* optionalEnv("CMAIL_ORIGIN")),
       },
     }
   }),

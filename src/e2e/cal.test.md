@@ -75,6 +75,12 @@
 - Assert the meeting-retry API leaves a created meeting alone: no second Google event is created
 - Assert the meeting-retry API rejects calls without a valid API key
 
+# Admin notification
+
+- Assert that once a booking is accepted, an email is sent to ADMIN_EMAIL, titled "New booking request from <name>", with the booked date, time and time zone, and the booker's name, email and description
+- Assert exactly one email is sent per booking request
+- Assert that when the email cannot be sent, the booking is still accepted and stored
+
 # Rate limiting
 
 - Every test acts as its own client, so tests never use up each other's request budget

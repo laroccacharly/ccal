@@ -14,6 +14,7 @@ import {
   retryMeetings,
   unfinishedMeeting,
 } from "./meetings"
+import { notifyAdmin } from "./notify"
 
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   "Unauthorized",
@@ -49,7 +50,8 @@ const availability = Effect.gen(function* availability() {
 })
 
 // Only a slot from the current availability can be booked; it is stored in its normalized ISO form.
-// Its Google Meet is created after the response is sent; if that fails, the scheduled retry tries again.
+// Its Google Meet is created, and the admin emailed, after the response is sent. If the Meet fails, the scheduled
+// retry tries again; the email is sent once, without retries, since a retried send may arrive twice.
 const createBookingRequest = Effect.gen(function* createBookingRequest() {
   const body = yield* HttpServerRequest.schemaBodyJson(BookingRequestBody)
   const startsAt = findSlot(body.startsAt, yield* Clock.currentTimeMillis)
@@ -57,9 +59,12 @@ const createBookingRequest = Effect.gen(function* createBookingRequest() {
     return yield* new SlotUnavailable()
   }
   const booking = yield* insertBookingRequest({ ...body, startsAt })
+  const context = yield* Cloudflare.Workers.WorkerExecutionContext
+  yield* context.waitUntil(
+    notifyAdmin(booking).pipe(Effect.catchCause(Effect.logError))
+  )
   const meeting = yield* unfinishedMeeting(booking.id)
   if (meeting !== undefined) {
-    const context = yield* Cloudflare.Workers.WorkerExecutionContext
     yield* context.waitUntil(
       createBookingMeeting(meeting).pipe(Effect.catchCause(Effect.logError))
     )

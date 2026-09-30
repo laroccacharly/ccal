@@ -29,6 +29,8 @@
 // GET /api/booking-requests also returns each booking's Google Meet (`meeting`), which the Worker creates in the background.
 // The Worker reaches "Google" at GOOGLE_API_ORIGIN, a stub (google-stub.ts) whose /stub/* routes list the events it
 // created and make it fail for an attendee. POST /api/meetings/retry (with the API key) retries unfinished meetings now.
+// The Worker emails ADMIN_EMAIL through "cmail" at CMAIL_ORIGIN, a stub (cmail-stub.ts) whose /stub/* routes list the
+// emails it received and make it fail for emails mentioning a text.
 // The API allows each client 10 requests every 60 seconds, keyed on CF-Connecting-IP. Locally the Worker trusts that header,
 // so each test sends its own to act as a separate client.
 
@@ -48,6 +50,7 @@ import type {
   TestInfo,
 } from "@playwright/test"
 
+import type { StubEmail } from "./cmail-stub"
 import type { StubEvent } from "./google-stub"
 
 const API_KEY = process.env.CCAL_API_KEY ?? ""
@@ -1045,6 +1048,87 @@ test.describe("Google Meet", () => {
       const response = await request.post("/api/meetings/retry", { headers })
       expect(response.status()).toBe(401)
     }
+  })
+})
+
+const CMAIL = process.env.CMAIL_ORIGIN ?? ""
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? ""
+
+// The emails cmail received about a booker; each mentions the booker's email.
+const adminEmails = async (request: APIRequestContext, email: string) =>
+  await readJson<StubEmail[]>(
+    await request.get(`${CMAIL}/stub/emails`, { params: { contains: email } })
+  )
+
+const cmailOutage = async (
+  request: APIRequestContext,
+  email: string,
+  down: boolean
+) => {
+  const outage = `${CMAIL}/stub/outages/${encodeURIComponent(email)}`
+  const response = await (down ? request.put(outage) : request.delete(outage))
+  expect(response.ok()).toBe(true)
+}
+
+test.describe("Admin notification", () => {
+  test.skip(
+    process.env.BASE_URL !== undefined,
+    "needs the cmail stub, which only runs with the local server"
+  )
+
+  test("a booking emails ADMIN_EMAIL with the booked time and the booker's details", async ({
+    request,
+  }) => {
+    const email = uniqueEmail()
+    const booking = await book(request, email)
+    await expect
+      .poll(async () => await adminEmails(request, email))
+      .toHaveLength(1)
+
+    const [sent] = await adminEmails(request, email)
+    expect(sent.to).toBe(ADMIN_EMAIL)
+    expect(sent.title).toBe(`New booking request from ${contact.name}`)
+    const when = new Intl.DateTimeFormat("en-US", {
+      dateStyle: "full",
+      timeStyle: "short",
+      hourCycle: "h23",
+      timeZone: MONTREAL,
+    }).format(new Date(booking.startsAt))
+    for (const detail of [
+      when,
+      MONTREAL,
+      contact.name,
+      email,
+      contact.description,
+    ]) {
+      expect(sent.body).toContain(detail)
+    }
+  })
+
+  test("sends exactly one email per booking request", async ({ request }) => {
+    const email = uniqueEmail()
+    await book(request, email)
+    await expect
+      .poll(async () => await adminEmails(request, email))
+      .toHaveLength(1)
+    // Still one once the Worker has also finished the booking's meeting.
+    await settledMeeting(request, email, "created")
+    expect(await adminEmails(request, email)).toHaveLength(1)
+  })
+
+  test("when the email cannot be sent, the booking is still accepted and stored", async ({
+    request,
+  }) => {
+    const email = uniqueEmail()
+    await cmailOutage(request, email, true)
+    await book(request, email)
+    expect(await storedBooking(request, email)).toMatchObject({
+      ...contact,
+      email,
+    })
+    await settledMeeting(request, email, "created")
+    expect(await adminEmails(request, email)).toEqual([])
+    await cmailOutage(request, email, false)
   })
 })
 
