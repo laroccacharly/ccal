@@ -12,6 +12,7 @@ import { RATE_LIMIT, RateLimiter, rateLimit } from "./rate-limit"
 import { routes } from "./routes"
 
 export const Database = Cloudflare.D1.Database("Database", {
+  name: "ccal-db",
   migrations: "migrations",
 })
 // { [name]: value } when `name` is set, otherwise {}, so an unset variable is left out of the Worker's env.
