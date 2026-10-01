@@ -9,7 +9,8 @@ interface TurnstileApi {
     options: {
       sitekey: string
       action: string
-      size: "compact"
+      size: "flexible"
+      theme: "light"
       callback: (token: string) => void
       "error-callback": () => void
       "expired-callback": () => void
@@ -90,7 +91,10 @@ const Widget = ({ onToken, onRetry }: Props & { onRetry: () => void }) => {
         // Always set: the build fails without it.
         sitekey: import.meta.env.TURNSTILE_SITE_KEY,
         action: "booking",
-        size: "compact",
+        // Fills the container width at a fixed 65px height, instead of the compact square.
+        size: "flexible",
+        // The page is always light; the default "auto" follows the OS and turns dark on a dark-mode system.
+        theme: "light",
         callback: (token) => {
           onToken(token)
           setStatus("Verification complete")
@@ -112,9 +116,12 @@ const Widget = ({ onToken, onRetry }: Props & { onRetry: () => void }) => {
   }, [onToken])
 
   return (
-    <div data-testid="turnstile">
-      <div ref={container} />
-      <output className="text-muted-foreground text-sm">{status}</output>
+    <div data-testid="turnstile" className="flex flex-col items-center gap-2">
+      {/* Reserves the widget's height so the dialog does not jump when it renders. */}
+      <div ref={container} className="min-h-[65px] w-full" />
+      <output className="text-muted-foreground text-center text-sm">
+        {status}
+      </output>
       {failed && (
         <Button variant="outline" onClick={onRetry}>
           Retry verification

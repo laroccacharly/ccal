@@ -164,7 +164,7 @@ export const ConfirmationPage = ({
           <AlertDialog.Backdrop className="fixed inset-0 bg-black/40" />
           <AlertDialog.Popup
             data-testid="confirm-dialog"
-            className="bg-card fixed top-1/2 left-1/2 flex w-80 -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-3xl border p-6"
+            className="bg-card fixed top-1/2 left-1/2 flex w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-3xl border p-5 sm:p-6"
           >
             <AlertDialog.Title className="text-lg font-semibold">
               Confirm your booking
