@@ -1,15 +1,22 @@
 # ccal
 
-Cal minimal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. Admin also receives a notification email.
+A minimal Cal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The admin also receives a notification email.
+
+Why:
+
+- You own how you define your availability
+- You own the customer experience
+- A self-contained problem
+- Good for learning; builds on the fundamentals
 
 ## Features
 
-- Self-serving booking, pick a time and date
+- Self-service booking: pick a date and time
 - Timezone picker
 - Server-driven time
 - User info form
-- Turnstile protection on the post
-- Google meet integration
+- Turnstile protection on the booking POST
+- Google Meet integration
 - Admin notification email
 - Rate limiting
 - E2E and smoke tests
@@ -17,8 +24,8 @@ Cal minimal clone. Visitors pick a time slot on a web page and send a booking re
 ## Stack
 
 - effect-ts
-- cloudflare
-- alchemy for Infra as Code
+- Cloudflare
+- Alchemy for infrastructure as code
 - Playwright E2E and smoke tests
 
 ## Develop and deploy
