@@ -1,6 +1,6 @@
 # ccal
 
-A minimal Cal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The admin also receives a notification email. 
+A minimal Cal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The admin also receives a notification email.
 
 Why:
 
@@ -10,6 +10,7 @@ Why:
 - Good for learning; builds on the fundamentals
 
 ## Features
+
 For a backend of roughly 1,000 lines of TypeScript, we have
 
 - Self-service booking: pick a date and time
@@ -34,7 +35,7 @@ For a backend of roughly 1,000 lines of TypeScript, we have
 ```sh
 bun dev             # run locally on http://localhost:1337
 bun test:e2e        # end-to-end tests
-bun alchemy deploy
+bun run deploy      # Rebuilds the UI, must use instead of direct alchemy deploy
 bun run test:smoke  # smoke test against the deployed app
 ```
 
