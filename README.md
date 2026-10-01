@@ -1,6 +1,6 @@
 # ccal
 
-A minimal Cal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The admin also receives a notification email. The backend is roughly 1,000 lines of TypeScript.
+A minimal Cal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The admin also receives a notification email. 
 
 Why:
 
@@ -10,6 +10,7 @@ Why:
 - Good for learning; builds on the fundamentals
 
 ## Features
+For a backend of roughly 1,000 lines of TypeScript, we have
 
 - Self-service booking: pick a date and time
 - Timezone picker
