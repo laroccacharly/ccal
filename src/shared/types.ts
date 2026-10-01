@@ -13,9 +13,22 @@ export type BookingRequest = Contact & {
   timeZone: string
 }
 
-// What can be booked: each day ("YYYY-MM-DD", host calendar) with its slots as ISO datetimes.
+// A bookable slot: its start as an ISO datetime, and that start as "HH:mm" (24h) in each offered time zone.
+export interface AvailableSlot {
+  startsAt: string
+  times: Record<string, string>
+}
+
+// What can be booked, and the server's time, which is the only clock the UI uses.
 export interface Availability {
-  days: { date: string; slots: string[] }[]
+  // The server's current time, as an ISO datetime
+  now: string
+  // The current day ("YYYY-MM-DD") in the host's calendar
+  today: string
+  // Each offered time zone's offset from UTC at `now`, in minutes (e.g. -240 for Montreal in summer)
+  offsets: Record<string, number>
+  // Each bookable day ("YYYY-MM-DD", host calendar) with its slots
+  days: { date: string; slots: AvailableSlot[] }[]
 }
 
 // The Google Meet of a booking request. The server creates it after accepting the booking and retries until it works.

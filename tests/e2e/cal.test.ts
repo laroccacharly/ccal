@@ -9,6 +9,7 @@
 //   data-testid="selected-date"    shows the currently selected date
 //   data-testid="no-available-days" banner shown when every day in the displayed month is disabled
 //   data-testid="availability-error" banner shown when the available days cannot be loaded
+//   data-testid="availability-loading" banner shown while the available days are loading
 //   data-testid="timezone-select"  <select> whose option values are IANA zones
 //   data-testid="current-time"     text "Current time: HH:mm" (24h) in the selected zone
 //   data-testid="time-slot"        one <button> per time slot, text "HH:mm" (24h)
@@ -23,7 +24,11 @@
 //   data-testid="success-page"     root of the success page
 //   data-testid="success-meeting-link-message" note to check the inbox for the Meet link
 //
-// The UI loads the bookable days and slots from GET /api/availability on the same origin, and only offers those.
+// The UI loads the bookable days and slots from GET /api/availability on the same origin, and only offers those. The
+// response also carries the server's time (`now`, `today`, and each zone's `offsets`) and each slot's time in every zone,
+// so the UI never reads the browser's clock or time zone data.
+// POST /api/test-clock { now } (with the API key) fakes the server's time, `{ now: null }` resets it; the Worker only
+// serves it when started with ENABLE_TEST_CLOCK, which playwright.config.ts sets.
 // Clicking "OK" POSTs the booking to /api/booking-requests on the same origin as the UI.
 // GET /api/booking-requests?email= reads back what was stored; it requires "Authorization: Bearer $CCAL_API_KEY".
 // GET /api/version returns the serving Worker version ({ id, tag, timestamp }), and is exempt from the rate limit.
@@ -50,6 +55,7 @@ import type {
   Route,
   TestInfo,
 } from "@playwright/test"
+import { Schema } from "effect"
 
 import type { StubEmail } from "./cmail-stub"
 import type { StubEvent } from "./google-stub"
@@ -62,76 +68,18 @@ const MONTREAL = "America/Toronto"
 const PARIS = "Europe/Paris"
 const VANCOUVER = "America/Vancouver"
 
-const pad = (n: number) => String(n).padStart(2, "0")
+const DAY = 24 * 60 * 60 * 1000
 
-const isoDate = (date: Date) =>
-  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+// The time the date and time scenarios fake: October 1 2026, 10:00 in Montreal.
+const CLOCK = "2026-10-01T14:00:00.000Z"
 
-const monthLabel = (date: Date) =>
-  date.toLocaleString("en-US", { month: "long", year: "numeric" })
-
-const addDays = (date: Date, days: number) => {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return next
-}
-
-// Offset of `timeZone` from UTC at `at`, in minutes.
-const utcOffsetMinutes = (at: Date, timeZone: string) => {
-  // e.g. "GMT-07:00"
-  const name =
-    new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
-      .formatToParts(at)
-      .find((part) => part.type === "timeZoneName")?.value ?? ""
-  const groups = /GMT(?<sign>[+-])(?<hours>\d{2}):(?<minutes>\d{2})/u.exec(
-    name
-  )?.groups
-  if (groups === undefined) {
-    return 0
-  }
-  const minutes = Number(groups.hours) * 60 + Number(groups.minutes)
-  return groups.sign === "-" ? -minutes : minutes
-}
-
-// Minutes to add to a Vancouver wall-clock time to get the Paris one, on the given day.
-const parisMinusVancouverMinutes = (day: string) => {
-  const at = new Date(`${day}T12:00:00Z`)
-  return utcOffsetMinutes(at, PARIS) - utcOffsetMinutes(at, VANCOUVER)
-}
-
-// Date ("YYYY-MM-DD") and 24h time ("HH:mm") of an ISO datetime, as seen in `timeZone`.
-const inZone = (iso: string, timeZone: string) => {
-  const at = new Date(iso)
-  return {
-    date: new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(at),
-    time: new Intl.DateTimeFormat("en-GB", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).format(at),
-  }
-}
+// The day after `date` ("YYYY-MM-DD").
+const nextDay = (date: string) =>
+  new Date(Date.parse(`${date}T00:00:00Z`) + DAY).toISOString().slice(0, 10)
 
 const toMinutes = (time: string) => {
   const [hours, minutes] = time.trim().split(":").map(Number)
   return hours * 60 + minutes
-}
-
-// Current wall-clock time in `timeZone`, in minutes since midnight.
-const nowInZoneMinutes = (timeZone: string) => {
-  const time = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(new Date())
-  return toMinutes(time)
 }
 
 // Distance between two times of day in minutes, wrapping around midnight.
@@ -178,15 +126,49 @@ const boundingBox = async (locator: Locator) => {
   return box
 }
 
-const expectCurrentTimeIn = async (page: Page, timeZone: string) => {
+// Asserts the current time shown is `expected` ("HH:mm"), within a minute.
+const expectCurrentTime = async (page: Page, expected: string) => {
   await expect(currentTime(page)).toHaveText(/^Current time: \d{2}:\d{2}$/u)
   const text = (await currentTime(page).textContent()) ?? ""
   const shown = toMinutes(text.replace("Current time:", ""))
-  expect(minutesApart(shown, nowInZoneMinutes(timeZone))).toBeLessThanOrEqual(1)
+  expect(minutesApart(shown, toMinutes(expected))).toBeLessThanOrEqual(1)
+}
+
+// Waits until the available days are loaded (or failed to load). The month label renders together with the loading
+// banner, so once it is there the banner is too, and is only hidden once loading is over.
+const waitForAvailability = async (page: Page) => {
+  await expect(monthLabelEl(page)).toBeAttached()
+  await expect(page.getByTestId("availability-loading")).toBeHidden()
+}
+
+// Fakes the server's time (an ISO datetime), or goes back to the real time with null.
+const setTestClock = async (request: APIRequestContext, now: string | null) => {
+  const response = await request.post("/api/test-clock", {
+    data: { now },
+    headers: { Authorization: `Bearer ${API_KEY}` },
+  })
+  expect(response.status()).toBe(200)
+}
+
+// Fakes the server's time to `now` for every test of the enclosing describe, reloading the page so it shows that time.
+const useTestClock = (now: string) => {
+  test.skip(
+    process.env.BASE_URL !== undefined,
+    "fakes the server's time, which only the local server allows"
+  )
+  test.beforeEach(async ({ page, request }) => {
+    await setTestClock(request, now)
+    await page.goto("/")
+    await waitForAvailability(page)
+  })
+  test.afterEach(async ({ request }) => {
+    await setTestClock(request, null)
+  })
 }
 
 // Selects the first available date, moving to the next month if the current one has none left.
 const selectFirstAvailableDate = async (page: Page) => {
+  await waitForAvailability(page)
   if ((await enabledDays(page).count()) === 0) {
     await page.getByTestId("next-month").click()
   }
@@ -224,32 +206,33 @@ const fillContact = async (page: Page, values: Partial<Contact> = {}) => {
 const submitButton = (page: Page) => page.getByTestId("submit-button")
 const confirmDialog = (page: Page) => page.getByRole("alertdialog")
 
-const slotTimes = async (page: Page) => {
-  const texts = await timeSlots(page).allTextContents()
-  return texts.map(toMinutes)
-}
-
-// Serves `offered` as the availability, as if the server offered exactly those days.
+// Serves `offered` as the availability, as if the server offered exactly those days, at the CLOCK time.
 const serveAvailability = async (page: Page, offered: Availability["days"]) => {
   await page.route("**/api/availability", async (route) => {
-    await route.fulfill({ json: { days: offered } satisfies Availability })
+    await route.fulfill({
+      json: {
+        now: CLOCK,
+        today: "2026-10-01",
+        offsets: { [MONTREAL]: -240, [PARIS]: 120, [VANCOUVER]: -420 },
+        days: offered,
+      } satisfies Availability,
+    })
   })
 }
 
 // Every day from `first` through `last` ("YYYY-MM-DD"), each with one slot.
 const everyDay = (first: string, last: string): Availability["days"] => {
   const result: Availability["days"] = []
-  for (
-    let date = first;
-    date <= last;
-    date = isoDate(addDays(new Date(`${date}T00:00:00`), 1))
-  ) {
-    result.push({ date, slots: [`${date}T17:30:00.000Z`] })
+  for (let date = first; date <= last; date = nextDay(date)) {
+    result.push({
+      date,
+      slots: [
+        { startsAt: `${date}T17:30:00.000Z`, times: { [MONTREAL]: "13:30" } },
+      ],
+    })
   }
   return result
 }
-
-const DAY = 24 * 60 * 60 * 1000
 
 const RATE_LIMIT = 10
 
@@ -265,9 +248,45 @@ test.use({
   },
 })
 
+// Stands in for Cloudflare's Turnstile script, so no test reaches the network: every widget passes at once with
+// Cloudflare's dummy token, which the Turnstile stub accepts. Resetting a widget passes it again, and an "e2e-expire"
+// event expires every widget.
+const TURNSTILE_SCRIPT = "**/turnstile/v0/api.js?*"
+const FAKE_TURNSTILE = `
+  const widgets = new Map();
+  const pass = (id) => setTimeout(() => widgets.get(id)?.callback?.("XXXX.DUMMY.TOKEN.XXXX"), 0);
+  window.addEventListener("e2e-expire", () => {
+    for (const options of widgets.values()) options["expired-callback"]?.();
+  });
+  window.turnstile = {
+    render(container, options) {
+      const id = "widget-" + (widgets.size + 1);
+      const element = typeof container === "string" ? document.querySelector(container) : container;
+      element.textContent = "test widget";
+      widgets.set(id, options);
+      pass(id);
+      return id;
+    },
+    reset(id) { pass(id); },
+    remove(id) { widgets.delete(id); },
+    getResponse() { return "XXXX.DUMMY.TOKEN.XXXX"; },
+    isExpired() { return false; },
+    ready(callback) { callback(); },
+  };
+`
+
+const fakeTurnstile = async (route: Route) => {
+  await route.fulfill({
+    contentType: "application/javascript",
+    body: FAKE_TURNSTILE,
+  })
+}
+
 test.beforeEach(async ({ page }) => {
+  await page.route(TURNSTILE_SCRIPT, fakeTurnstile)
   await page.goto("/")
   await page.waitForLoadState("load")
+  await waitForAvailability(page)
 })
 
 test.describe("Page load", () => {
@@ -281,29 +300,99 @@ test.describe("Page load", () => {
   })
 })
 
+test.describe("Loading", () => {
+  test("disables every control behind a loading banner until the available days are loaded", async ({
+    page,
+  }) => {
+    // Holds the availability response until `release` is called.
+    const { promise: released, resolve: release } =
+      Promise.withResolvers<null>()
+    await page.route("**/api/availability", async (route) => {
+      await released
+      await route.continue()
+    })
+    await page.goto("/")
+    const loading = page.getByTestId("availability-loading")
+    await expect(loading).toHaveText("Loading available days")
+    await expect(page.getByTestId("prev-month")).toBeDisabled()
+    await expect(page.getByTestId("next-month")).toBeDisabled()
+    await expect(timezoneSelect(page)).toBeDisabled()
+    await expect(confirmButton(page)).toBeDisabled()
+    await expect(enabledDays(page)).toHaveCount(0)
+    await expect(
+      page.locator('[data-testid="time-slot"]:not([disabled])')
+    ).toHaveCount(0)
+
+    release(null)
+    await expect(loading).toBeHidden()
+    await expect(page.getByTestId("next-month")).toBeEnabled()
+    await expect(timezoneSelect(page)).toBeEnabled()
+  })
+})
+
+test.describe("Server time", () => {
+  test.skip(
+    process.env.BASE_URL !== undefined,
+    "fakes the server's time, which only the local server allows"
+  )
+  test("the test-clock API rejects calls without a valid API key", async ({
+    request,
+  }) => {
+    // No key, a wrong key, and the right key without the "Bearer " scheme.
+    const attempts: Record<string, string>[] = [
+      {},
+      { Authorization: "Bearer wrong-key" },
+      { Authorization: API_KEY },
+    ]
+    for (const headers of attempts) {
+      const response = await request.post("/api/test-clock", {
+        data: { now: CLOCK },
+        headers,
+      })
+      expect(response.status()).toBe(401)
+    }
+  })
+
+  test("resetting the test clock brings back the real time", async ({
+    request,
+  }) => {
+    const serverNow = async () => {
+      const response = await request.get("/api/availability")
+      const availability = await readJson<Availability>(response)
+      return Date.parse(availability.now)
+    }
+    await setTestClock(request, CLOCK)
+    expect(await serverNow()).toBe(Date.parse(CLOCK))
+    await setTestClock(request, null)
+    expect(Math.abs((await serverNow()) - Date.now())).toBeLessThan(60_000)
+  })
+})
+
 test.describe("Date select", () => {
+  useTestClock(CLOCK)
+
   test("shows the current month and year", async ({ page }) => {
-    await expect(monthLabelEl(page)).toHaveText(monthLabel(new Date()))
+    await expect(monthLabelEl(page)).toHaveText("October 2026")
   })
 
   test("greys out past days, today and tomorrow", async ({ page }) => {
-    const tomorrow = isoDate(addDays(new Date(), 1))
-    await expect(days(page).first()).toBeVisible()
     const dates = await days(page).evaluateAll((els) =>
       els.map((el) => el.dataset.date ?? "")
     )
-    const unavailable = dates.filter((date) => date <= tomorrow)
-    expect(unavailable.length).toBeGreaterThan(0)
+    const unavailable = dates.filter((date) => date <= "2026-10-02")
+    expect(unavailable).toContain("2026-10-01")
+    expect(unavailable).toContain("2026-10-02")
     for (const date of unavailable) {
       await expect(day(page, date)).toBeDisabled()
     }
+    await expect(day(page, "2026-10-03")).toBeEnabled()
   })
 
   test("clicking a greyed-out date does not change the selected date", async ({
     page,
   }) => {
     const before = await selectedDate(page).textContent()
-    await day(page, isoDate(new Date())).click({ force: true })
+    await day(page, "2026-10-01").click({ force: true })
     await expect(selectedDate(page)).toHaveText(before ?? "")
   })
 
@@ -316,11 +405,8 @@ test.describe("Date select", () => {
   })
 
   test("next month arrow shows the next month", async ({ page }) => {
-    const now = new Date()
     await page.getByTestId("next-month").click()
-    await expect(monthLabelEl(page)).toHaveText(
-      monthLabel(new Date(now.getFullYear(), now.getMonth() + 1, 1))
-    )
+    await expect(monthLabelEl(page)).toHaveText("November 2026")
   })
 
   test("selecting a date in the next month updates the selected date", async ({
@@ -343,20 +429,18 @@ test.describe("Date select", () => {
       await expect(next).toBeEnabled()
       await next.click()
     }
-    const now = new Date()
-    await expect(monthLabelEl(page)).toHaveText(
-      monthLabel(new Date(now.getFullYear(), now.getMonth() + 3, 1))
-    )
+    await expect(monthLabelEl(page)).toHaveText("January 2027")
     await expect(next).toBeDisabled()
   })
 
   test('shows a "No available days this month" banner when every day is disabled', async ({
     page,
+    request,
   }) => {
     // The earliest bookable day is October 1, so every September day is disabled.
-    await page.clock.install({ time: new Date("2026-09-29T10:00:00") })
-    await serveAvailability(page, everyDay("2026-10-01", "2026-12-31"))
+    await setTestClock(request, "2026-09-29T14:00:00.000Z")
     await page.goto("/")
+    await waitForAvailability(page)
     await expect(monthLabelEl(page)).toHaveText("September 2026")
     await expect(enabledDays(page)).toHaveCount(0)
     await expect(noAvailableDays(page)).toHaveText(
@@ -374,10 +458,7 @@ test.describe("Date select", () => {
   test('hides the "No available days this month" banner when some days are available', async ({
     page,
   }) => {
-    // The earliest bookable day is October 3, so October still has available days.
-    await page.clock.install({ time: new Date("2026-10-01T10:00:00") })
-    await serveAvailability(page, everyDay("2026-10-03", "2027-01-31"))
-    await page.goto("/")
+    // On October 1 the earliest bookable day is October 3, so October still has available days.
     await expect(monthLabelEl(page)).toHaveText("October 2026")
     await expect(enabledDays(page).first()).toBeVisible()
     await expect(noAvailableDays(page)).toBeHidden()
@@ -386,18 +467,15 @@ test.describe("Date select", () => {
   test("only offers the days the server says are available", async ({
     page,
   }) => {
-    const now = new Date()
-    // "YYYY-MM-"
-    const month = isoDate(
-      new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    ).slice(0, 8)
-    const offered = [`${month}05`, `${month}20`]
+    const offered = ["2026-11-05", "2026-11-20"]
     await serveAvailability(page, [
       ...everyDay(offered[0], offered[0]),
       ...everyDay(offered[1], offered[1]),
     ])
     await page.goto("/")
+    await waitForAvailability(page)
     await page.getByTestId("next-month").click()
+    await expect(monthLabelEl(page)).toHaveText("November 2026")
     await expect(enabledDays(page)).toHaveCount(2)
     expect(
       await enabledDays(page).evaluateAll((els) =>
@@ -421,9 +499,12 @@ test.describe("Date select", () => {
 })
 
 test.describe("Time select", () => {
+  useTestClock(CLOCK)
+
   test("time slots are greyed out until a date is selected", async ({
     page,
   }) => {
+    await expect(timeSlots(page)).toHaveCount(3)
     for (const slot of await timeSlots(page).all()) {
       await expect(slot).toBeDisabled()
     }
@@ -453,49 +534,43 @@ test.describe("Time select", () => {
   })
 
   test("switching the time zone updates the time slots", async ({ page }) => {
-    const date = await selectFirstAvailableDate(page)
-
+    expect(await selectFirstAvailableDate(page)).toBe("2026-10-03")
     await timezoneSelect(page).selectOption(VANCOUVER)
-    await expect(timeSlots(page)).toHaveCount(3)
-    const firstVancouverSlot =
-      (await timeSlots(page).first().textContent()) ?? ""
-    const vancouver = await slotTimes(page)
-
+    await expect(timeSlots(page)).toHaveText(["10:30", "12:30", "13:30"])
     await timezoneSelect(page).selectOption(PARIS)
-    await expect(timeSlots(page).first()).not.toHaveText(firstVancouverSlot)
-    const paris = await slotTimes(page)
-
-    const shift = parisMinusVancouverMinutes(date)
-    expect(paris).toEqual(
-      vancouver.map((minutes) => (minutes + shift) % (24 * 60))
-    )
+    await expect(timeSlots(page)).toHaveText(["19:30", "21:30", "22:30"])
   })
 
   test('shows "Current time: " for the selected time zone', async ({
     page,
   }) => {
-    await expectCurrentTimeIn(page, MONTREAL)
+    await expectCurrentTime(page, "10:00")
   })
 
   test("current time follows the selected time zone", async ({ page }) => {
     await timezoneSelect(page).selectOption(PARIS)
-    await expectCurrentTimeIn(page, PARIS)
+    await expectCurrentTime(page, "16:00")
     await timezoneSelect(page).selectOption(VANCOUVER)
-    await expectCurrentTimeIn(page, VANCOUVER)
+    await expectCurrentTime(page, "07:00")
   })
 
   test("offers the time slots the server gives for the selected date", async ({
     page,
   }) => {
-    const date = isoDate(addDays(new Date(), 2))
-    const slots = [`${date}T14:00:00.000Z`, `${date}T21:45:00.000Z`]
-    await serveAvailability(page, [{ date, slots }])
+    const date = "2026-10-03"
+    await serveAvailability(page, [
+      {
+        date,
+        slots: [
+          { startsAt: `${date}T14:00:00.000Z`, times: { [PARIS]: "16:00" } },
+          { startsAt: `${date}T21:45:00.000Z`, times: { [PARIS]: "23:45" } },
+        ],
+      },
+    ])
     await page.goto("/")
     await selectFirstAvailableDate(page)
     await timezoneSelect(page).selectOption(PARIS)
-    await expect(timeSlots(page)).toHaveText(
-      slots.map((slot) => inZone(slot, PARIS).time)
-    )
+    await expect(timeSlots(page)).toHaveText(["16:00", "23:45"])
   })
 
   test("confirm button is disabled until a time slot is selected", async ({
@@ -707,7 +782,14 @@ test.describe("Confirmation page", () => {
       email,
       description: contact.description,
     })
-    expect(inZone(bookings[0].startsAt, timeZone)).toEqual({ date, time })
+    // The stored instant is the slot that was picked: on the selected day, at the time shown in that zone.
+    const available = await readJson<Availability>(
+      await request.get("/api/availability")
+    )
+    const picked = available.days
+      .find((offered) => offered.date === date)
+      ?.slots.find((slot) => slot.startsAt === bookings[0].startsAt)
+    expect(picked?.times[timeZone]).toBe(time)
   })
 
   test("the server's booking-request API rejects listing bookings without a valid API key", async ({
@@ -732,9 +814,9 @@ test.describe("Confirmation page", () => {
     const available = await readJson<Availability>(
       await request.get("/api/availability")
     )
-    const first = Date.parse(available.days[0].slots[0])
+    const first = Date.parse(available.days[0].slots[0].startsAt)
     const last = Date.parse(
-      (available.days.at(-1) ?? available.days[0]).slots[0]
+      (available.days.at(-1) ?? available.days[0]).slots[0].startsAt
     )
     const unavailable = {
       "a past date": first - 3 * DAY,
@@ -773,7 +855,7 @@ test.describe("Confirmation page", () => {
       data: {
         ...contact,
         email,
-        startsAt: available.days[0].slots[0],
+        startsAt: available.days[0].slots[0].startsAt,
         timeZone: "Mars/Olympus_Mons",
       } satisfies BookingRequest,
     })
@@ -871,9 +953,10 @@ const book = async (request: APIRequestContext, email: string) => {
     data: {
       ...contact,
       email,
-      startsAt: available.days[0].slots[0],
+      startsAt: available.days[0].slots[0].startsAt,
       timeZone: MONTREAL,
-    } satisfies BookingRequest,
+      turnstileToken: "XXXX.DUMMY.TOKEN.XXXX",
+    } satisfies BookingRequest & { turnstileToken: string },
   })
   expect(response.status()).toBe(201)
   return await readJson<StoredBooking>(response)
@@ -1204,6 +1287,136 @@ test.describe("Rate limiting", () => {
 
     const version = await request.get("/api/version", { headers })
     expect(version.status()).toBe(200)
+  })
+})
+
+test.describe("Turnstile", () => {
+  test.skip(
+    process.env.BASE_URL !== undefined,
+    "uses local dummy keys and the Siteverify stub"
+  )
+
+  for (const [scenario, token, status] of [
+    ["missing", undefined, 403],
+    ["empty", "", 400],
+    ["overlong", "x".repeat(2049), 400],
+    ["invalid", "e2e-invalid", 403],
+    ["expired or duplicate", "e2e-spent", 403],
+    ["wrong hostname", "e2e-wrong-host", 403],
+    ["wrong action", "e2e-wrong-action", 403],
+    ["verification outage", "e2e-outage", 503],
+  ] as const) {
+    test(`${scenario} verification creates no booking, email, or Meet`, async ({
+      request,
+    }) => {
+      const email = uniqueEmail()
+      const available = await readJson<Availability>(
+        await request.get("/api/availability")
+      )
+      const response = await request.post("/api/booking-requests", {
+        data: {
+          ...contact,
+          email,
+          startsAt: available.days[0].slots[0].startsAt,
+          timeZone: MONTREAL,
+          turnstileToken: token,
+        },
+      })
+      expect(response.status()).toBe(status)
+      const stored = await request.get("/api/booking-requests", {
+        params: { email },
+        headers: { Authorization: `Bearer ${API_KEY}` },
+      })
+      expect(stored.status()).toBe(200)
+      expect(await stored.json()).toEqual([])
+      expect(await googleEvents(request, email)).toEqual([])
+      expect(await adminEmails(request, email)).toEqual([])
+    })
+  }
+
+  test("script failure blocks submission and offers a working retry", async ({
+    page,
+  }) => {
+    // The script fails to load once; the retry gets the fake one.
+    let failing = true
+    await page.route(TURNSTILE_SCRIPT, async (route) => {
+      await (failing ? route.abort() : route.fallback())
+    })
+    await goToConfirmation(page)
+    await fillContact(page)
+    await submitButton(page).click()
+    const ok = confirmDialog(page).getByRole("button", {
+      name: "OK",
+      exact: true,
+    })
+    await expect(ok).toBeDisabled()
+    const retry = page.getByRole("button", { name: "Retry verification" })
+    await expect(retry).toBeVisible()
+    failing = false
+    await retry.click()
+    await expect(ok).toBeEnabled()
+  })
+
+  test("expiry clears the token and reopening removes the old widget", async ({
+    page,
+  }) => {
+    await goToConfirmation(page)
+    await fillContact(page)
+    await submitButton(page).click()
+    const ok = confirmDialog(page).getByRole("button", {
+      name: "OK",
+      exact: true,
+    })
+    await expect(ok).toBeEnabled()
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("e2e-expire"))
+    })
+    await expect(ok).toBeDisabled()
+    await page.getByRole("button", { name: "Retry verification" }).click()
+    await expect(ok).toBeEnabled()
+    await confirmDialog(page).getByRole("button", { name: "Cancel" }).click()
+    await expect(page.getByTestId("turnstile")).toHaveCount(0)
+    await submitButton(page).click()
+    await expect(ok).toBeEnabled()
+    await expect(page.getByTestId("turnstile")).toHaveCount(1)
+  })
+
+  test("a rejected browser booking stays in the dialog and succeeds after fresh verification", async ({
+    page,
+    request,
+  }) => {
+    const email = uniqueEmail()
+    await goToConfirmation(page)
+    await fillContact(page, { email })
+    await submitButton(page).click()
+    await page.route("**/api/booking-requests", async (route) => {
+      const body = Schema.decodeUnknownSync(
+        Schema.Struct({
+          startsAt: Schema.String,
+          timeZone: Schema.String,
+          name: Schema.String,
+          email: Schema.String,
+          description: Schema.String,
+        })
+      )(route.request().postDataJSON())
+      await route.continue({
+        postData: JSON.stringify({ ...body, turnstileToken: "e2e-invalid" }),
+      })
+    })
+    const ok = confirmDialog(page).getByRole("button", {
+      name: "OK",
+      exact: true,
+    })
+    await ok.click()
+    await expect(page.getByTestId("booking-error")).toBeVisible()
+    await expect(page).toHaveURL(/confirm/u)
+    expect(await googleEvents(request, email)).toEqual([])
+    expect(await adminEmails(request, email)).toEqual([])
+    await page.unroute("**/api/booking-requests")
+    await expect(ok).toBeEnabled()
+    await ok.click()
+    await expect(page.getByTestId("success-page")).toBeVisible()
+    expect(await storedBooking(request, email)).toMatchObject({ email })
   })
 })
 

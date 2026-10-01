@@ -1,3 +1,4 @@
+import type { Availability, AvailableSlot } from "@ccal/shared"
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
@@ -11,10 +12,13 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/components/ui/lib/utils"
 import { getAvailability } from "@/lib/api"
 import {
+  daysInMonth,
+  firstWeekday,
   formatSelectedDate,
-  fromIsoDate,
   isoDate,
   monthLabel,
+  timeAtOffset,
+  yearMonth,
 } from "@/lib/dates"
 import {
   HOST_TIME_ZONE,
@@ -30,8 +34,12 @@ export interface Booking {
   timeZone: string
 }
 
-// Bookable days mapped to their slots (ISO datetimes), or why they are not known yet.
-type Days = Map<string, string[]> | "loading" | "error"
+// The server's availability, with when it arrived (performance.now()) so the shown time can move on from the
+// server's, or why it is not known yet.
+type Loaded = Availability & { status: "loaded"; receivedAt: number }
+type State = Loaded | { status: "loading" } | { status: "error" }
+
+const loadedOf = (state: State) => (state.status === "loaded" ? state : null)
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
@@ -72,46 +80,49 @@ const Banner = ({
   </div>
 )
 
+// A date's month, counted in months since year 0, so stepping and comparing months is plain arithmetic.
+const monthIndex = (date: string) => {
+  const { year, month } = yearMonth(date)
+  return year * 12 + month
+}
+
+// The month the calendar shows (`moved` once the visitor stepped away from the server's current month), whether it
+// may step back or forward, and its days.
+const calendarMonth = (loaded: Loaded, moved: number | null) => {
+  const current = monthIndex(loaded.today)
+  const lastDay = loaded.days.at(-1)
+  const last = lastDay === undefined ? current : monthIndex(lastDay.date)
+  const shown = moved ?? current
+  const year = Math.floor(shown / 12)
+  const month = shown % 12
+  return {
+    shown,
+    canGoBack: shown > current,
+    canGoForward: shown < last,
+    label: monthLabel(year, month),
+    leadingBlanks: firstWeekday(year, month),
+    days: Array.from({ length: daysInMonth(year, month) }, (_, i) =>
+      isoDate(year, month, i + 1)
+    ),
+  }
+}
+
 const Calendar = ({
-  days: bookable,
+  state,
   selected,
   onSelect,
 }: {
-  days: Days
+  state: State
   selected: string | null
   onSelect: (date: string) => void
 }) => {
-  // Read once: the calendar keeps the day the page was opened on.
-  // oxlint-disable-next-line react/hook-use-state -- today never changes, so there is no setter
-  const [today] = useState(() => new Date())
-  const [view, setView] = useState({
-    year: today.getFullYear(),
-    month: today.getMonth(),
-  })
-  const monthsAhead =
-    (view.year - today.getFullYear()) * 12 + view.month - today.getMonth()
-  const isBookable = (date: string) =>
-    bookable instanceof Map && bookable.has(date)
-  // The last month with a bookable day, counted from the current one.
-  const lastDate =
-    bookable instanceof Map ? [...bookable.keys()].at(-1) : undefined
-  const last = lastDate === undefined ? today : fromIsoDate(lastDate)
-  const maxMonthsAhead =
-    (last.getFullYear() - today.getFullYear()) * 12 +
-    last.getMonth() -
-    today.getMonth()
-
-  const leadingBlanks = new Date(view.year, view.month, 1).getDay()
-  const daysInMonth = new Date(view.year, view.month + 1, 0).getDate()
-  const days = Array.from({ length: daysInMonth }, (_, i) =>
-    isoDate(new Date(view.year, view.month, i + 1))
-  )
-  const noAvailableDays = bookable instanceof Map && !days.some(isBookable)
-
-  const shiftMonth = (delta: number) => {
-    const next = new Date(view.year, view.month + delta, 1)
-    setView({ year: next.getFullYear(), month: next.getMonth() })
-  }
+  const loaded = loadedOf(state)
+  const [moved, setMoved] = useState<number | null>(null)
+  const view = loaded === null ? null : calendarMonth(loaded, moved)
+  const days = view?.days ?? []
+  const bookable = new Set(loaded?.days.map((day) => day.date))
+  const noAvailableDays =
+    loaded !== null && !days.some((date) => bookable.has(date))
 
   return (
     <Panel className="flex flex-col gap-4">
@@ -121,24 +132,28 @@ const Calendar = ({
           size="icon"
           aria-label="Previous month"
           data-testid="prev-month"
-          disabled={monthsAhead <= 0}
+          disabled={view?.canGoBack !== true}
           onClick={() => {
-            shiftMonth(-1)
+            if (view !== null) {
+              setMoved(view.shown - 1)
+            }
           }}
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} />
         </Button>
-        <h2 data-testid="month-label" className="font-semibold">
-          {monthLabel(view.year, view.month)}
+        <h2 data-testid="month-label" className="min-h-6 font-semibold">
+          {view?.label}
         </h2>
         <Button
           variant="ghost"
           size="icon"
           aria-label="Next month"
           data-testid="next-month"
-          disabled={monthsAhead >= maxMonthsAhead}
+          disabled={view?.canGoForward !== true}
           onClick={() => {
-            shiftMonth(1)
+            if (view !== null) {
+              setMoved(view.shown + 1)
+            }
           }}
         >
           <HugeiconsIcon icon={ArrowRight01Icon} />
@@ -152,13 +167,13 @@ const Calendar = ({
         {selected === null ? "Select a date" : formatSelectedDate(selected)}
       </p>
 
-      <div className="relative grid grid-cols-7 gap-1 text-center">
+      <div className="relative grid min-h-64 grid-cols-7 content-start gap-1 text-center">
         {WEEKDAYS.map((weekday) => (
           <span key={weekday} className="text-muted-foreground pb-1 text-xs">
             {weekday}
           </span>
         ))}
-        {Array.from({ length: leadingBlanks }, (_, i) => (
+        {Array.from({ length: view?.leadingBlanks ?? 0 }, (_, i) => (
           <span key={`blank-${i}`} />
         ))}
         {days.map((date) => (
@@ -169,7 +184,7 @@ const Calendar = ({
             data-testid="day"
             data-date={date}
             aria-pressed={date === selected}
-            disabled={!isBookable(date)}
+            disabled={!bookable.has(date)}
             onClick={() => {
               onSelect(date)
             }}
@@ -177,12 +192,15 @@ const Calendar = ({
             {Number(date.slice(8))}
           </Button>
         ))}
+        {state.status === "loading" && (
+          <Banner testId="availability-loading">Loading available days</Banner>
+        )}
         {noAvailableDays && (
           <Banner testId="no-available-days">
             No available days this month
           </Banner>
         )}
-        {bookable === "error" && (
+        {state.status === "error" && (
           <Banner testId="availability-error">
             Could not load available days
           </Banner>
@@ -192,22 +210,32 @@ const Calendar = ({
   )
 }
 
-const CurrentTime = ({ timeZone }: { timeZone: string }) => {
-  const [now, setNow] = useState(() => Date.now())
+// The server's time when the availability arrived, moved on by the time since, shown at the zone's offset.
+const CurrentTime = ({
+  loaded,
+  timeZone,
+}: {
+  loaded: Loaded | null
+  timeZone: string
+}) => {
+  const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
-    const id = setInterval(() => {
-      setNow(Date.now())
-    }, 1000)
+    const tick = () => {
+      if (loaded !== null) {
+        setElapsed(performance.now() - loaded.receivedAt)
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
     return () => {
       clearInterval(id)
     }
-  }, [])
-  const time = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(now)
+  }, [loaded])
+  const offset = loaded?.offsets[timeZone]
+  const time =
+    loaded === null || offset === undefined
+      ? "--:--"
+      : timeAtOffset(Date.parse(loaded.now) + elapsed, offset)
 
   return (
     <p data-testid="current-time" className="text-muted-foreground text-sm">
@@ -217,22 +245,24 @@ const CurrentTime = ({ timeZone }: { timeZone: string }) => {
 }
 
 const TimePicker = ({
-  days,
+  state,
   date,
   onConfirm,
 }: {
-  days: Days
+  state: State
   date: string | null
   onConfirm: (booking: Booking) => void
 }) => {
   const [timeZone, setTimeZone] = useState(HOST_TIME_ZONE)
   const [selected, setSelected] = useState<string | null>(null)
+  const loaded = loadedOf(state)
   // Until a date is picked, the first bookable day's slots are shown, disabled.
-  const startsAts =
-    days instanceof Map
-      ? ((date === null ? days.values().next().value : days.get(date)) ?? [])
-      : []
-  const slots = slotsIn(startsAts, timeZone)
+  const day =
+    date === null
+      ? loaded?.days[0]
+      : loaded?.days.find((bookable) => bookable.date === date)
+  const available: AvailableSlot[] = day?.slots ?? []
+  const slots = slotsIn(available, timeZone)
   const slot =
     date === null ? undefined : slots.find((s) => s.startsAt === selected)
 
@@ -242,6 +272,7 @@ const TimePicker = ({
       <select
         data-testid="timezone-select"
         aria-label="Time zone"
+        disabled={loaded === null}
         value={timeZone}
         onChange={(event) => {
           setTimeZone(event.target.value)
@@ -254,7 +285,7 @@ const TimePicker = ({
           </option>
         ))}
       </select>
-      <CurrentTime timeZone={timeZone} />
+      <CurrentTime loaded={loaded} timeZone={timeZone} />
 
       {slots.map((s) => (
         <Button
@@ -294,7 +325,7 @@ export const BookingPage = ({
   onConfirm: (booking: Booking) => void
 }) => {
   const [date, setDate] = useState<string | null>(null)
-  const [days, setDays] = useState<Days>("loading")
+  const [state, setState] = useState<State>({ status: "loading" })
 
   useEffect(() => {
     let active = true
@@ -302,13 +333,15 @@ export const BookingPage = ({
       try {
         const availability = await getAvailability()
         if (active) {
-          setDays(
-            new Map(availability.days.map((day) => [day.date, day.slots]))
-          )
+          setState({
+            ...availability,
+            status: "loaded",
+            receivedAt: performance.now(),
+          })
         }
       } catch {
         if (active) {
-          setDays("error")
+          setState({ status: "error" })
         }
       }
     }
@@ -321,8 +354,8 @@ export const BookingPage = ({
   return (
     <div className="flex flex-col gap-4 rounded-4xl border p-4 md:flex-row">
       <MeetingInfo />
-      <Calendar days={days} selected={date} onSelect={setDate} />
-      <TimePicker days={days} date={date} onConfirm={onConfirm} />
+      <Calendar state={state} selected={date} onSelect={setDate} />
+      <TimePicker state={state} date={date} onConfirm={onConfirm} />
     </div>
   )
 }

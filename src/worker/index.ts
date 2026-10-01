@@ -31,6 +31,9 @@ const jsonError = (error: string, status: number) =>
 export default class Worker extends Cloudflare.Worker<Worker>()(
   "Worker",
   Effect.gen(function* workerProps() {
+    // The host of `ccal config --set-url` (provided by alchemy.run.ts), where visitors load the app and solve Turnstile.
+    // Required, with no default: callers such as `bun dev` and Playwright pass "localhost" themselves.
+    const hostname = yield* Config.String("CCAL_HOSTNAME")
     return {
       name: "ccal",
       main: import.meta.url,
@@ -50,14 +53,16 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
         port: yield* Config.Int("DEV_PORT").pipe(Config.withDefault(1337)),
         strictPort: true,
       },
-      // The host of `ccal config --set-url`, provided by alchemy.run.ts. Unset (as inside the running Worker),
-      // custom domains are left alone. `alchemy dev` ignores it.
-      domain: Option.getOrUndefined(
-        yield* Config.option(Config.String("CCAL_DOMAIN"))
-      ),
+      // Attached as a custom domain, except a workers.dev address, which Cloudflare serves without one.
+      // `alchemy dev` ignores it.
+      domain: hostname.endsWith(".workers.dev") ? undefined : hostname,
       env: {
         // Required to read bookings (GET /api/booking-requests). Set it in .env or the environment.
         CCAL_API_KEY: Config.Redacted("CCAL_API_KEY"),
+        TURNSTILE_SECRET_KEY: yield* Config.Redacted("TURNSTILE_SECRET_KEY"),
+        // Without it the Worker could not tell a Turnstile token solved on this app from one solved elsewhere.
+        CCAL_HOSTNAME: hostname,
+        ...(yield* optionalEnv("TURNSTILE_API_ORIGIN")),
         // To create Google Meet invites: the OAuth client from .env, and the refresh token saved by `ccal login`
         // (provided by alchemy.run.ts). The Worker trades the refresh token for a short-lived access token.
         // Read here rather than passed as Config, which Alchemy resolves without alchemy.run.ts's provider.
@@ -70,6 +75,8 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
         // Only set by the end-to-end tests, to stand in for Google and cmail.
         ...(yield* optionalEnv("GOOGLE_API_ORIGIN")),
         ...(yield* optionalEnv("CMAIL_ORIGIN")),
+        // Only set by the end-to-end tests, to fake the time through POST /api/test-clock. Never set it in production.
+        ...(yield* optionalEnv("ENABLE_TEST_CLOCK")),
       },
     }
   }),
@@ -99,7 +106,11 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
             ),
           RateLimitUnavailable: () => jsonError("rate_limit_unavailable", 503),
           Unauthorized: () => jsonError("unauthorized", 401),
+          TurnstileRejected: () => jsonError("verification_rejected", 403),
+          TurnstileUnavailable: () =>
+            jsonError("verification_unavailable", 503),
           SlotUnavailable: () => jsonError("slot_unavailable", 422),
+          TestClockDisabled: () => jsonError("not_found", 404),
           SchemaError: () => jsonError("invalid_request", 400),
           BookingNotStored: () => jsonError("booking_store_failed", 500),
           SqlError: () => jsonError("booking_store_failed", 500),

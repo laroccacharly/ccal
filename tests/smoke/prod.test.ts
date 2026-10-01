@@ -7,6 +7,8 @@
 // The API allows each client 10 requests every 60 seconds, keyed on the caller's real IP, so polling is kept slow.
 // Before booking, it waits until GET /api/version (exempt from the rate limit) reports the version Cloudflare lists as
 // deployed: a new version takes a few seconds to reach every Cloudflare location after a deploy.
+// Production runs the real Turnstile, which rejects headless and most automated browsers: the run opens a visible
+// Brave (see playwright.config.ts here) and waits for whoever runs it to complete the check, if Turnstile asks for one.
 // Afterwards the test prints the Worker's logs from Cloudflare's observability API (as `ccf worker logs` does), which
 // needs CLOUDFLARE_ACCOUNT_ID and a CLOUDFLARE_API_TOKEN with Workers observability read access. Cloudflare makes logs
 // searchable out of order, so the test notes the ray id (the cf-ray response header) of every API request it makes,
@@ -27,6 +29,11 @@ const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? ""
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN ?? ""
 // The deployed Worker's script name, which its logs are filed under.
 const WORKER = "ccal"
+// How long whoever runs the test has to complete the Turnstile check.
+const VERIFICATION_TIMEOUT = 5 * 60_000
+// Turnstile's own requests and console messages, e.g. the 401 of its Private Access Token probe.
+const isTurnstile = (url: string) =>
+  url.startsWith("https://challenges.cloudflare.com/")
 
 type StoredBooking = BookingRequest & { id: number; meeting: Meeting | null }
 
@@ -61,7 +68,9 @@ const enabledDays = (page: Page) =>
 
 // Selects the first available date, moving to the next month if the current one has none left.
 const selectFirstAvailableDate = async (page: Page) => {
-  await expect(page.getByTestId("day").first()).toBeVisible()
+  // Waits until the available days are loaded: the month label renders together with the loading banner.
+  await expect(page.getByTestId("month-label")).toBeAttached()
+  await expect(page.getByTestId("availability-loading")).toBeHidden()
   if ((await enabledDays(page).count()) === 0) {
     await page.getByTestId("next-month").click()
   }
@@ -73,7 +82,7 @@ const selectFirstAvailableDate = async (page: Page) => {
 const watchErrors = (page: Page) => {
   const errors: string[] = []
   page.on("console", (message) => {
-    if (message.type() === "error") {
+    if (message.type() === "error" && !isTurnstile(message.location().url)) {
       errors.push(`console: ${message.text()}`)
     }
   })
@@ -84,7 +93,7 @@ const watchErrors = (page: Page) => {
     if (new URL(response.url()).pathname.startsWith("/api/")) {
       noteRayId(response.headers()["cf-ray"])
     }
-    if (response.status() >= 400) {
+    if (response.status() >= 400 && !isTurnstile(response.url())) {
       errors.push(`HTTP ${response.status()} ${response.url()}`)
     }
   })
@@ -275,6 +284,7 @@ test("booking through the UI stores the booking and creates its Google Meet", as
   page,
   request,
 }) => {
+  test.setTimeout(test.info().timeout + VERIFICATION_TIMEOUT)
   const errors = watchErrors(page)
   const email = smokeEmail()
   const contact = {
@@ -282,6 +292,14 @@ test("booking through the UI stores the booking and creates its Google Meet", as
     email,
     description: "Smoke test after a deploy, safe to ignore.",
   }
+
+  // The test clock only exists when the Worker runs with ENABLE_TEST_CLOCK, which production never sets.
+  const testClock = await request.post("/api/test-clock", {
+    data: { now: "2026-09-29T14:00:00.000Z" },
+    headers: { Authorization: `Bearer ${API_KEY}` },
+  })
+  noteRayId(testClock.headers()["cf-ray"])
+  expect(testClock.status()).toBe(404)
 
   await page.goto("/")
   await selectFirstAvailableDate(page)
@@ -293,13 +311,19 @@ test("booking through the UI stores the booking and creates its Google Meet", as
   await page.getByLabel("Email").fill(contact.email)
   await page.getByLabel("Description").fill(contact.description)
   await page.getByTestId("submit-button").click()
+  const dialog = page.getByRole("alertdialog")
+  console.log("Complete the Turnstile check in the browser if it asks for one.")
+  await expect(dialog.getByTestId("turnstile")).toContainText(
+    "Verification complete",
+    { timeout: VERIFICATION_TIMEOUT }
+  )
   const [posted] = await Promise.all([
     page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/booking-requests") &&
         response.request().method() === "POST"
     ),
-    page.getByRole("alertdialog").getByRole("button", { name: "OK" }).click(),
+    dialog.getByRole("button", { name: "OK" }).click(),
   ])
   expect(posted.status()).toBe(201)
   const accepted = await readJson<StoredBooking>(posted)

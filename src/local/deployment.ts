@@ -9,30 +9,24 @@ const toConfigError = (error: { readonly message: string }) =>
     new ConfigProvider.SourceError({ message: error.message })
   )
 
-/**
- * The custom domain Alchemy attaches to the Worker: the host of the saved URL. None when no URL is
- * saved, or when it is a workers.dev address, which Cloudflare serves without a custom domain.
- */
-const customDomain = Effect.gen(function* customDomain() {
+// The host of the saved URL, where visitors load the app. None when no URL is saved.
+const savedHostname = Effect.gen(function* savedHostname() {
   const { url } = yield* readSettings()
-  const hostname = url === undefined ? undefined : new URL(url).hostname
-  return hostname === undefined || hostname.endsWith(".workers.dev")
-    ? undefined
-    : hostname
+  return url === undefined ? undefined : new URL(url).hostname
 })
 
 /**
- * What the deployed Worker takes from this machine: CCAL_DOMAIN from `ccal config --set-url`, and
+ * What the deployed Worker takes from this machine: CCAL_HOSTNAME from `ccal config --set-url`, and
  * GOOGLE_REFRESH_TOKEN from `ccal login`, which the Worker uses to create Meet invites. Only
  * alchemy.run.ts reads it, to plan and deploy; the environment still wins over it.
  */
 export const deploymentConfig = ConfigProvider.layerAdd(
   Effect.gen(function* deploymentConfig() {
-    const domain = yield* customDomain
+    const hostname = yield* savedHostname
     const login = yield* readGoogleLogin
     const config: Record<string, string> = {}
-    if (domain !== undefined) {
-      config.CCAL_DOMAIN = domain
+    if (hostname !== undefined) {
+      config.CCAL_HOSTNAME = hostname
     }
     if (Option.isSome(login) && login.value.refresh_token !== "") {
       config.GOOGLE_REFRESH_TOKEN = login.value.refresh_token

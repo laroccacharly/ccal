@@ -32,7 +32,17 @@ const CMAIL_ENV = {
 process.env.CMAIL_ORIGIN = CMAIL_ENV.CMAIL_ORIGIN
 process.env.ADMIN_EMAIL = CMAIL_ENV.ADMIN_EMAIL
 
+const TURNSTILE_ENV = {
+  TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+  TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
+  // Overrides the host of the URL saved on this machine, which alchemy.run.ts would provide.
+  CCAL_HOSTNAME: "localhost",
+  TURNSTILE_API_ORIGIN: "http://127.0.0.1:3105",
+}
+
 export default defineConfig({
+  // Every dependency is a local stub, so no test should take longer.
+  timeout: 5000,
   testDir: "tests/e2e",
   testMatch: "*.test.ts",
   use: {
@@ -55,6 +65,11 @@ export default defineConfig({
             reuseExistingServer: false,
           },
           {
+            command: "bun tests/e2e/turnstile-stub.ts",
+            url: `${TURNSTILE_ENV.TURNSTILE_API_ORIGIN}/health`,
+            reuseExistingServer: false,
+          },
+          {
             command: "bun run build && bunx alchemy dev --stage e2e",
             url: `http://localhost:${PORT}`,
             env: {
@@ -62,6 +77,9 @@ export default defineConfig({
               CCAL_API_KEY: process.env.CCAL_API_KEY,
               ...GOOGLE_ENV,
               ...CMAIL_ENV,
+              ...TURNSTILE_ENV,
+              // Lets the tests fake the server's time through POST /api/test-clock.
+              ENABLE_TEST_CLOCK: "true",
             },
             reuseExistingServer: false,
             timeout: 120_000,

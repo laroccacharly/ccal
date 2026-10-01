@@ -18,7 +18,8 @@ export const getAvailability = async () => {
 
 export const postBookingRequest = async (
   booking: Booking,
-  contact: Contact
+  contact: Contact,
+  turnstileToken: string
 ) => {
   const response = await fetch("/api/booking-requests", {
     method: "POST",
@@ -27,7 +28,8 @@ export const postBookingRequest = async (
       startsAt: booking.slot.startsAt,
       timeZone: booking.timeZone,
       ...contact,
-    } satisfies BookingRequest),
+      turnstileToken,
+    } satisfies BookingRequest & { turnstileToken: string }),
   })
   if (!response.ok) {
     throw new Error(`Booking request failed (${response.status})`)

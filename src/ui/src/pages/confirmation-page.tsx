@@ -2,6 +2,7 @@ import { AlertDialog } from "@base-ui/react/alert-dialog"
 import type { Contact } from "@ccal/shared"
 import { useState } from "react"
 
+import { Turnstile } from "@/components/turnstile"
 import { Button } from "@/components/ui/button"
 import { postBookingRequest } from "@/lib/api"
 import { formatSelectedDate } from "@/lib/dates"
@@ -52,6 +53,8 @@ export const ConfirmationPage = ({
   const [errors, setErrors] = useState<ContactErrors>({})
   const [dialogOpen, setDialogOpen] = useState(false)
   const [sending, setSending] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
+  const [verificationAttempt, setVerificationAttempt] = useState(0)
   const [sendError, setSendError] = useState<string | null>(null)
   const date = formatSelectedDate(booking.date)
   const time = booking.slot.label
@@ -73,13 +76,18 @@ export const ConfirmationPage = ({
   }
 
   const send = async () => {
+    if (token === null || sending) {
+      return
+    }
     setSending(true)
     setSendError(null)
     try {
-      await postBookingRequest(booking, contact)
+      await postBookingRequest(booking, contact, token)
       onConfirm(contact)
     } catch {
       setSendError("We couldn't send your booking request. Please try again.")
+      setToken(null)
+      setVerificationAttempt((value) => value + 1)
       setSending(false)
     }
   }
@@ -172,12 +180,15 @@ export const ConfirmationPage = ({
                 {sendError}
               </p>
             )}
+            {dialogOpen && (
+              <Turnstile key={verificationAttempt} onToken={setToken} />
+            )}
             <div className="flex justify-end gap-2">
               <AlertDialog.Close render={<Button variant="outline" />}>
                 Cancel
               </AlertDialog.Close>
               <Button
-                disabled={sending}
+                disabled={sending || token === null}
                 onClick={() => {
                   void send()
                 }}

@@ -6,19 +6,31 @@
 - Assert url contains "#" (hashrouter)
 - Assert url contains "form"
 
+# Loading
+
+- Assert that while the available days are loading, a "Loading available days" banner is shown on top of the calendar days, the month arrows, time zone and confirm button are disabled, and no day or time slot can be selected
+- Assert the banner disappears once the available days are loaded
+
+# Server time
+
+- Every date and time the page shows comes from the server: the current month, today, the current time and the time slots in each time zone. The page never uses the browser's clock or time zone data.
+- The server's clock can be faked through its test-clock API, called with the API key, only when the server is started with ENABLE_TEST_CLOCK
+- Assert the test-clock API rejects calls without a valid API key
+- Assert resetting the test clock brings back the real time
+- The date and time scenarios below fake the server's clock to October 1 2026, 10:00 in Montreal, then reload the page
+
 # Date select
 
-- Get the current day, month and year from the local machine
-- Assert the displayed month and year match the current month and year
-- Assert all past days, today and tomorrow are greyed out
+- Assert the displayed month and year are October 2026
+- Assert all past days, today (October 1) and tomorrow (October 2) are greyed out
 - Assert clicking a greyed-out date does not change the selected date
 - Assert clicking an available date changes the selected date
 - Assert clicking the next month arrow shows the next month
 - Assert selecting a date in the next month updates the selected date
 - Assert selected date has the format "Month Day Year"
-- Assert next month arrow is disabled at 3 months out in the future
+- Assert next month arrow is disabled at 3 months out in the future (January 2027)
 - Assert a "No available days this month" banner is shown on top of the calendar days when every day in the displayed month is disabled, and hidden otherwise
-  - Fake the clock to September 29 2026 (banner shown) and to October 1 2026 (no banner)
+  - Fake the server's clock to September 29 2026 (September shown, banner shown) and to October 1 2026 (October shown, no banner)
 - Assert the calendar only offers the days the server says are available
 - Assert that when the available days cannot be loaded, a "Could not load available days" banner is shown on top of the calendar days
 
@@ -29,9 +41,9 @@
 - Assert default time zone is Montreal Canada.
 - Assert time slots in Montreal time zone are: 13:30, 15:30 and 16:30.
 - Assert switching the time zone updates the time slots accordingly
-  - Test with the France (Europe/Paris) and Vancouver (America/Vancouver) time zones
-- Assert there is a "Current time: " with the current time for the selected time zone.
-- Assert current time changes to match the selected time zone (with a 1 minute tolerance)
+  - On October 3 2026: Vancouver (America/Vancouver) shows 10:30, 12:30 and 13:30, and France (Europe/Paris) shows 19:30, 21:30 and 22:30
+- Assert there is a "Current time: " with the current time for the selected time zone: 10:00 in Montreal (with a 1 minute tolerance)
+- Assert current time changes to match the selected time zone: 16:00 in Paris and 07:00 in Vancouver (with a 1 minute tolerance)
 - Assert the time slots offered for a date are the ones the server gives for that date
 - Assert the confirm button is greyed out and disabled until a time slot is selected
 - Assert the confirm button is enabled once a time slot is selected
@@ -58,6 +70,18 @@
 - Assert the server's booking-request API rejects, and does not store, a booking that is not for an available time slot: a past date, today, tomorrow, a date more than 3 months out, or a time that is not one of the offered slots
 - Assert the server's booking-request API rejects, and does not store, a booking with a time zone the UI does not offer
 - Assert that when the booking request fails, the dialog shows an error and the page stays on the confirmation page
+
+# Turnstile
+
+- The final confirmation dialog renders a Managed Turnstile widget explicitly; OK stays disabled until its callback supplies a token.
+- Closing the dialog removes the widget; reopening starts fresh. Errors and expiry clear the token and offer a retry.
+- A failed booking submission resets verification before another attempt.
+- The UI sends the token in the booking JSON; the Worker verifies it before storing anything or scheduling notifications or meetings.
+- Verification requires the app's hostname and the action "booking", with no exception for test keys.
+- Assert missing, empty, overlong, invalid, expired/duplicate, wrong-hostname, and wrong-action tokens cannot create a booking, email, or Google event.
+- Assert verification outages fail closed with 503 and no side effects.
+- Assert widget script failure blocks submission and exposes a retry.
+- Assert a rejected browser submission stays in the dialog and can succeed after fresh verification.
 
 # Success page
 

@@ -11,7 +11,7 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "bun run build && alchemy dev",
+    "dev": "bun run build && CCAL_HOSTNAME=localhost alchemy dev",
     "build": "bun --filter ui build",
     "test:e2e": "playwright test",
     "test:smoke": "playwright test -c tests/smoke/playwright.config.ts",

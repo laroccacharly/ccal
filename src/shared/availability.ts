@@ -22,18 +22,51 @@ export const TIME_ZONES = [
 export const timeZoneLabel = (timeZone: string) =>
   TIME_ZONES.find((zone) => zone.value === timeZone)?.label ?? timeZone
 
+// Creating a formatter is slow (a whole availability takes thousands of formats), so each is made once and reused.
+const cached = <T>(make: (timeZone: string) => T) => {
+  const made = new Map<string, T>()
+  return (timeZone: string) => {
+    const existing = made.get(timeZone)
+    if (existing !== undefined) {
+      return existing
+    }
+    const created = make(timeZone)
+    made.set(timeZone, created)
+    return created
+  }
+}
+
+const dateTimeFormat = cached(
+  (timeZone) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    })
+)
+
+const timeFormat = cached(
+  (timeZone) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+)
+
+const dateFormat = cached(
+  (timeZone) => new Intl.DateTimeFormat("en-CA", { timeZone })
+)
+
 // Offset of `timeZone` from UTC at `instant`, in milliseconds.
 const zoneOffset = (instant: number, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  }).formatToParts(instant)
+  const parts = dateTimeFormat(timeZone).formatToParts(instant)
   const get = (type: string) =>
     Number(parts.find((part) => part.type === type)?.value)
   const asUtc = Date.UTC(
@@ -60,34 +93,62 @@ const zonedInstant = (date: string, time: string, timeZone: string) => {
 const utcIsoDate = (year: number, month: number, day: number) =>
   new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10)
 
-// Every bookable day at `now`, in the host's calendar, with its slots as ISO datetimes.
-export const availabilityAt = (now: number): Availability => {
-  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
-    timeZone: HOST_TIME_ZONE,
-  })
-    .format(now)
-    .split("-")
-    .map(Number)
+// "HH:mm" (24h) of `instant` in `timeZone`.
+const timeIn = (instant: number, timeZone: string) =>
+  timeFormat(timeZone).format(instant)
+
+// A slot's start, with its time in every offered zone, so the UI never converts times itself.
+const availableSlot = (instant: number) => ({
+  startsAt: new Date(instant).toISOString(),
+  times: Object.fromEntries(
+    TIME_ZONES.map((zone) => [zone.value, timeIn(instant, zone.value)])
+  ),
+})
+
+// Today in the host's calendar at `now`, and every bookable day with its slots' start instants.
+const bookableDays = (now: number) => {
+  const today = dateFormat(HOST_TIME_ZONE).format(now)
+  const [year, month, day] = today.split("-").map(Number)
   const last = utcIsoDate(year, month + MAX_MONTHS_AHEAD, 0)
-  const days: Availability["days"] = []
+  const days: { date: string; instants: number[] }[] = []
   for (let offset = FIRST_BOOKABLE_DAY; ; offset += 1) {
     const date = utcIsoDate(year, month - 1, day + offset)
     if (date > last) {
-      return { days }
+      return { today, days }
     }
     days.push({
       date,
-      slots: HOST_SLOTS.map((time) =>
-        new Date(zonedInstant(date, time, HOST_TIME_ZONE)).toISOString()
+      instants: HOST_SLOTS.map((time) =>
+        zonedInstant(date, time, HOST_TIME_ZONE)
       ),
     })
+  }
+}
+
+// Every bookable day at `now`, in the host's calendar, with its slots, and the time the UI shows.
+export const availabilityAt = (now: number): Availability => {
+  const { today, days } = bookableDays(now)
+  return {
+    now: new Date(now).toISOString(),
+    today,
+    offsets: Object.fromEntries(
+      TIME_ZONES.map((zone) => [
+        zone.value,
+        Math.round(zoneOffset(now, zone.value) / 60_000),
+      ])
+    ),
+    days: days.map(({ date, instants }) => ({
+      date,
+      slots: instants.map(availableSlot),
+    })),
   }
 }
 
 // The slot `startsAt` falls on, as a normalized ISO datetime, if it is bookable at `now`.
 export const findSlot = (startsAt: string, now: number) => {
   const instant = Date.parse(startsAt)
-  return availabilityAt(now)
-    .days.flatMap((day) => day.slots)
-    .find((slot) => Date.parse(slot) === instant)
+  const found = bookableDays(now)
+    .days.flatMap((day) => day.instants)
+    .find((slotInstant) => slotInstant === instant)
+  return found === undefined ? undefined : new Date(found).toISOString()
 }

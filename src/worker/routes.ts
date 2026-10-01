@@ -16,6 +16,13 @@ import {
 } from "./meetings"
 import { notifyAdmin } from "./notify"
 import { VERSION_PATH } from "./rate-limit"
+import {
+  TestClockBody,
+  currentTime,
+  requireTestClock,
+  writeTestClock,
+} from "./test-clock"
+import { TurnstileToken, verifyTurnstile } from "./turnstile"
 
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   "Unauthorized",
@@ -28,6 +35,7 @@ export class SlotUnavailable extends Schema.TaggedError<SlotUnavailable>()(
 ) {}
 
 const BookingRequestBody = Schema.Struct({
+  turnstileToken: Schema.optionalKey(TurnstileToken),
   startsAt: Schema.NonEmptyString,
   timeZone: Schema.String.check(
     Schema.makeFilter((zone) =>
@@ -43,11 +51,9 @@ const BookingSearchParams = Schema.Struct({
   email: Schema.optionalKey(Schema.String),
 })
 
-// The days and time slots the UI offers. The Worker decides what is bookable; the UI only displays it.
+// The days and time slots the UI offers, and the time it shows. The Worker decides; the UI only displays it.
 const availability = Effect.gen(function* availability() {
-  return yield* HttpServerResponse.json(
-    availabilityAt(yield* Clock.currentTimeMillis)
-  )
+  return yield* HttpServerResponse.json(availabilityAt(yield* currentTime))
 })
 
 // Only a slot from the current availability can be booked; it is stored in its normalized ISO form.
@@ -55,11 +61,13 @@ const availability = Effect.gen(function* availability() {
 // retry tries again; the email is sent once, without retries, since a retried send may arrive twice.
 const createBookingRequest = Effect.gen(function* createBookingRequest() {
   const body = yield* HttpServerRequest.schemaBodyJson(BookingRequestBody)
-  const startsAt = findSlot(body.startsAt, yield* Clock.currentTimeMillis)
+  const startsAt = findSlot(body.startsAt, yield* currentTime)
   if (startsAt === undefined) {
     return yield* new SlotUnavailable()
   }
-  const booking = yield* insertBookingRequest({ ...body, startsAt })
+  yield* verifyTurnstile(body.turnstileToken)
+  const { turnstileToken: _token, ...details } = body
+  const booking = yield* insertBookingRequest({ ...details, startsAt })
   const context = yield* Cloudflare.Workers.WorkerExecutionContext
   // The email failure must not fail the request, but it must not vanish either. `waitUntil` only reports a rejection
   // in production (locally workerd swallows it), so log it at error level first — visible in the dev log and matched
@@ -103,6 +111,17 @@ const retryMeetingsNow = Effect.gen(function* retryMeetingsNow() {
   })
 })
 
+// Fakes the time availability and bookings are based on, for the end-to-end tests; `{ now: null }` resets it.
+// Not found unless the Worker runs with ENABLE_TEST_CLOCK, whatever the API key.
+const testClock = Effect.gen(function* testClock() {
+  yield* requireTestClock
+  // Read the body before checking the key. Locally, rejecting a request whose body was never read leaves its connection
+  // broken, and the test's next request, sent on that same reused connection, fails with "socket hang up".
+  const { now } = yield* HttpServerRequest.schemaBodyJson(TestClockBody)
+  yield* requireApiKey
+  return yield* HttpServerResponse.json({ now: yield* writeTestClock(now) })
+})
+
 // The Worker version serving this request (id, tag and timestamp), e.g. to wait for a deploy to be live.
 const version = Effect.fn("version")(function* version(
   versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
@@ -119,5 +138,6 @@ export const routes = (
     HttpRouter.add("POST", "/api/booking-requests", createBookingRequest),
     HttpRouter.add("GET", "/api/booking-requests", bookingRequests),
     HttpRouter.add("POST", "/api/meetings/retry", retryMeetingsNow),
+    HttpRouter.add("POST", "/api/test-clock", testClock),
     HttpRouter.add("GET", VERSION_PATH, version(versionMetadata))
   )

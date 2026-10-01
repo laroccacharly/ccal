@@ -1,5 +1,7 @@
+import { existsSync } from "node:fs"
+
 import { NodeServices } from "@effect/platform-node"
-import { defineConfig, devices } from "@playwright/test"
+import { defineConfig } from "@playwright/test"
 import { Effect } from "effect"
 
 import { readSettings } from "../../src/local/settings"
@@ -19,6 +21,23 @@ if (baseURL === undefined || baseURL === "") {
   )
 }
 
+// Production runs the real Turnstile, which rejected Playwright's Chromium and Google Chrome but accepts Brave. The
+// test drives the Brave found at one of its usual install locations.
+const BRAVE_PATHS = [
+  "/opt/brave-bin/brave",
+  "/opt/brave.com/brave/brave",
+  "/usr/bin/brave-browser",
+  "/usr/bin/brave",
+  "/snap/bin/brave",
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+]
+const bravePath = BRAVE_PATHS.find((path) => existsSync(path))
+if (bravePath === undefined) {
+  throw new Error(
+    `Install Brave to run the smoke test: none found at ${BRAVE_PATHS.join(", ")}.`
+  )
+}
+
 export default defineConfig({
   testDir: ".",
   testMatch: "*.test.ts",
@@ -28,5 +47,20 @@ export default defineConfig({
   // searchable each take up to a minute, and the test waits up to 30 seconds for the Meet.
   timeout: 90_000,
   use: { baseURL },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "brave",
+      // No device preset: its fixed user agent (Windows, a Chrome version) would contradict what Brave reports about
+      // itself, which is the kind of mismatch Turnstile looks for.
+      use: {
+        // Turnstile rejects headless and visibly automated browsers, and whoever runs the test may have to click it.
+        headless: false,
+        launchOptions: {
+          ignoreDefaultArgs: ["--enable-automation"],
+          args: ["--disable-blink-features=AutomationControlled"],
+          executablePath: bravePath,
+        },
+      },
+    },
+  ],
 })

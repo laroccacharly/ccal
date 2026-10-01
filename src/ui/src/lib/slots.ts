@@ -1,3 +1,5 @@
+import type { AvailableSlot } from "@ccal/shared"
+
 export {
   HOST_TIME_ZONE,
   MEETING_MINUTES,
@@ -11,15 +13,9 @@ export interface Slot {
   label: string
 }
 
-export const slotsIn = (startsAts: string[], timeZone: string): Slot[] => {
-  const format = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  })
-  return startsAts.map((startsAt) => ({
-    startsAt,
-    label: format.format(new Date(startsAt)),
+// The server gives each slot's time in every offered zone, so the UI never converts times itself.
+export const slotsIn = (slots: AvailableSlot[], timeZone: string): Slot[] =>
+  slots.map((slot) => ({
+    startsAt: slot.startsAt,
+    label: slot.times[timeZone] ?? "",
   }))
-}
