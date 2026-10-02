@@ -2,6 +2,10 @@
 
 A minimal Cal clone. Visitors pick a time slot on a web page and send a booking request, and the app emails them a Google Meet invite. The admin also receives a notification email.
 
+## Demo
+
+[![ccal demo](https://img.youtube.com/vi/I_TaOakOukE/maxresdefault.jpg)](https://youtu.be/I_TaOakOukE)
+
 Why:
 
 - You own how you define your availability
