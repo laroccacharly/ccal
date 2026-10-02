@@ -5,5 +5,4 @@
 - By convention, we should update the .test.md before the test.ts
 - Always mention it when you change a .test.md file
 - see design-image for rough visual direction.
-- effect packages are pinned to 4.0.0-rc.117 (see `overrides` in package.json): alchemy 2.0.0-beta.79 needs effect >=4.0.0-rc.115, but rc.118 moved `effect/unstable/cli` to `effect/cli` and breaks it.
 - `bun run test:smoke` books a real slot on the deployed app and checks it end to end (tests/smoke); it sends real emails, so run it only when asked.

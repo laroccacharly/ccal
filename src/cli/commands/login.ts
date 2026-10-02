@@ -6,7 +6,7 @@ import {
   SCOPES,
 } from "@ccal/shared/google"
 import { Console, Deferred, Effect, Option, Schema } from "effect"
-import { Command } from "effect/unstable/cli"
+import { Command } from "effect/cli"
 
 import {
   googleLoginFromResponse,

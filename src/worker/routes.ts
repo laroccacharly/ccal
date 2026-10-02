@@ -2,11 +2,7 @@ import type { BookingRequest } from "@ccal/shared"
 import { TIME_ZONES, availabilityAt, findSlot } from "@ccal/shared/availability"
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Clock, Config, Effect, Layer, Redacted, Schema } from "effect"
-import {
-  HttpRouter,
-  HttpServerRequest,
-  HttpServerResponse,
-} from "effect/unstable/http"
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 
 import { insertBookingRequest, listBookingRequests } from "./bookings"
 import {

@@ -1,7 +1,7 @@
 import { MEETING_MINUTES } from "@ccal/shared/availability"
 import { createMeeting, refreshAccessToken } from "@ccal/shared/google"
 import { Config, Effect, Redacted, Result } from "effect"
-import { SqlClient } from "effect/unstable/sql/SqlClient"
+import { SqlClient } from "effect/sql"
 
 // How often Cloudflare runs the retry of meetings that are not created yet.
 export const RETRY_CRON = "*/15 * * * *"
@@ -18,7 +18,7 @@ interface UnfinishedMeeting {
   description: string
 }
 
-const unfinishedMeetings = (sql: SqlClient) => sql<UnfinishedMeeting>`
+const unfinishedMeetings = (sql: SqlClient.SqlClient) => sql<UnfinishedMeeting>`
   SELECT m.bookingRequestId, m.eventId, b.startsAt, b.name, b.email, b.description
   FROM meetings m JOIN booking_requests b ON b.id = m.bookingRequestId
   WHERE m.status != 'created'
@@ -27,7 +27,7 @@ const unfinishedMeetings = (sql: SqlClient) => sql<UnfinishedMeeting>`
 /** The meeting of a booking request, unless it is already created. */
 export const unfinishedMeeting = Effect.fn("unfinishedMeeting")(
   function* unfinishedMeeting(bookingRequestId: number) {
-    const sql = yield* SqlClient
+    const sql = yield* SqlClient.SqlClient
     const rows =
       yield* sql<UnfinishedMeeting>`${unfinishedMeetings(sql)} AND m.bookingRequestId = ${bookingRequestId}`
     return rows[0]
@@ -40,7 +40,7 @@ export const unfinishedMeeting = Effect.fn("unfinishedMeeting")(
  */
 export const createBookingMeeting = Effect.fn("createBookingMeeting")(
   function* createBookingMeeting(meeting: UnfinishedMeeting) {
-    const sql = yield* SqlClient
+    const sql = yield* SqlClient.SqlClient
     const start = new Date(meeting.startsAt)
     const result = yield* Effect.result(
       Effect.gen(function* attempt() {
@@ -86,7 +86,7 @@ export const createBookingMeeting = Effect.fn("createBookingMeeting")(
 export const retryMeetings = Effect.fn("retryMeetings")(function* retryMeetings(
   now: number
 ) {
-  const sql = yield* SqlClient
+  const sql = yield* SqlClient.SqlClient
   const due = yield* sql<UnfinishedMeeting>`
     ${unfinishedMeetings(sql)} AND b.startsAt > ${new Date(now).toISOString()}
     ORDER BY b.startsAt LIMIT ${RETRY_BATCH}

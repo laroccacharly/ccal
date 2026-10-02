@@ -4,7 +4,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
   HttpServerRequest,
-} from "effect/unstable/http"
+} from "effect/http"
 
 export const TurnstileToken = Schema.NonEmptyString.check(
   Schema.isMaxLength(2048)

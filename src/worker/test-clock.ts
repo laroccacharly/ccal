@@ -1,5 +1,5 @@
 import { Clock, Config, Effect, Schema } from "effect"
-import { SqlClient } from "effect/unstable/sql/SqlClient"
+import { SqlClient } from "effect/sql"
 
 export class TestClockDisabled extends Schema.TaggedError<TestClockDisabled>()(
   "TestClockDisabled",
@@ -23,7 +23,7 @@ export const TestClockBody = Schema.Struct({
 // The time availability and bookings are based on, in milliseconds: the test clock's when one is set, else the real time.
 export const currentTime = Effect.gen(function* currentTime() {
   if (yield* testClockEnabled) {
-    const sql = yield* SqlClient
+    const sql = yield* SqlClient.SqlClient
     const [row] = yield* sql<{ now: string }>`
       SELECT now FROM test_clock WHERE id = 1
     `
@@ -45,7 +45,7 @@ export const requireTestClock = Effect.gen(function* requireTestClock() {
 // It is kept in D1 rather than in memory, since requests may land on different isolates.
 export const writeTestClock = Effect.fn("writeTestClock")(
   function* writeTestClock(now: string | null) {
-    const sql = yield* SqlClient
+    const sql = yield* SqlClient.SqlClient
     if (now === null) {
       yield* sql`DELETE FROM test_clock`
       return null

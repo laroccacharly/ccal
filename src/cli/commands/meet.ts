@@ -1,6 +1,6 @@
 import { createMeeting } from "@ccal/shared/google"
 import { Console, Effect, Option, Schema } from "effect"
-import { Command, Flag } from "effect/unstable/cli"
+import { Command, Flag } from "effect/cli"
 
 import { accessToken } from "../../local/google-login"
 

@@ -1,11 +1,7 @@
 import * as Cloudflare from "alchemy/Cloudflare"
 import * as SQL from "alchemy/SQL/D1"
 import { Config, Effect, Layer, Match, Option } from "effect"
-import {
-  FetchHttpClient,
-  HttpRouter,
-  HttpServerResponse,
-} from "effect/unstable/http"
+import { FetchHttpClient, HttpRouter, HttpServerResponse } from "effect/http"
 
 import { RETRY_CRON, retryMeetings } from "./meetings"
 import { RATE_LIMIT, RateLimiter, rateLimit } from "./rate-limit"

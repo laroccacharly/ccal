@@ -1,6 +1,6 @@
 import type { BookingRequest, Meeting } from "@ccal/shared"
 import { Effect, Schema } from "effect"
-import { SqlClient } from "effect/unstable/sql/SqlClient"
+import { SqlClient } from "effect/sql"
 
 export class BookingNotStored extends Schema.TaggedError<BookingNotStored>()(
   "BookingNotStored",
@@ -11,7 +11,7 @@ type BookingRow = BookingRequest & { id: number }
 
 export const insertBookingRequest = Effect.fn("insertBookingRequest")(
   function* insertBookingRequest(input: BookingRequest) {
-    const sql = yield* SqlClient
+    const sql = yield* SqlClient.SqlClient
     const rows = yield* sql<BookingRow>`
     INSERT INTO booking_requests (startsAt, timeZone, name, email, description)
     VALUES (${input.startsAt}, ${input.timeZone}, ${input.name}, ${input.email}, ${input.description})
@@ -57,7 +57,7 @@ const withMeeting = ({
 
 export const listBookingRequests = Effect.fn("listBookingRequests")(
   function* listBookingRequests(email?: string) {
-    const sql = yield* SqlClient
+    const sql = yield* SqlClient.SqlClient
     const rows = yield* sql<ListedRow>`
     SELECT b.*, m.status AS meetingStatus, m.meetLink, m.attempts, m.lastError, m.updatedAt
     FROM booking_requests b LEFT JOIN meetings m ON m.bookingRequestId = b.id

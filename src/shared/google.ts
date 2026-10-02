@@ -1,11 +1,7 @@
 // Google OAuth and Calendar calls shared by the CLI and the Worker. They only need an HttpClient: where the
 // login is kept (a file for the CLI, secrets for the Worker) is up to each caller.
 import { Config, Effect, Option, Redacted, Schema } from "effect"
-import {
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "effect/unstable/http"
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 
 export const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",

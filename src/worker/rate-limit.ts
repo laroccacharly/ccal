@@ -1,6 +1,6 @@
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Effect, Option, Schema } from "effect"
-import { HttpServerRequest } from "effect/unstable/http"
+import { HttpServerRequest } from "effect/http"
 
 // Every request the Worker handles (all of /api/*) counts against its client's budget, except the version check.
 // Cloudflare's rate-limit binding only counts over 10 or 60 seconds.

@@ -24,12 +24,12 @@
   },
   "dependencies": {
     "@ccal/shared": "workspace:*",
-    "@effect/platform-bun": "4.0.0-rc.117",
-    "@effect/platform-node": "4.0.0-rc.117",
-    "@effect/sql-d1": "4.0.0-rc.117",
-    "alchemy": "2.0.0-beta.79",
+    "@effect/platform-bun": "^4.0.0",
+    "@effect/platform-node": "^4.0.0",
+    "@effect/sql-d1": "^4.0.0",
+    "alchemy": "2.0.0-beta.80",
     "cmail-client": "github:laroccacharly/cmail-client#v0.1.2",
-    "effect": "4.0.0-rc.117"
+    "effect": "^4.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260929.1",
@@ -42,10 +42,6 @@
     "ultracite": "^7.12.2"
   },
   "overrides": {
-    "@effect/platform-node-shared": "4.0.0-rc.117",
-    "@effect/sql-d1": "4.0.0-rc.117",
-    "@effect/sql-sqlite-do": "4.0.0-rc.117",
-    "@effect/vitest": "4.0.0-rc.117",
     "@oxlint/plugins": "$oxlint"
   }
 }
