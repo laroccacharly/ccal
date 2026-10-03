@@ -28,7 +28,7 @@
     "@effect/platform-node": "^4.0.0",
     "@effect/sql-d1": "^4.0.0",
     "alchemy": "2.0.0-beta.80",
-    "cmail-client": "github:laroccacharly/cmail-client#v0.1.2",
+    "cmail-client": "github:laroccacharly/cmail-client#v0.2.0",
     "effect": "^4.0.0"
   },
   "devDependencies": {
