@@ -1,20 +1,6 @@
-import type { Availability, BookingRequest, Contact } from "@ccal/shared"
-
-import type { Booking } from "@/pages/booking-page"
+import type { BookingRequest, Contact, Booking } from "@ccal/shared"
 
 // The API is served by the same Worker as the UI, so requests are same-origin.
-
-// The days and slots that can be booked; the server decides, the UI only displays them.
-export const getAvailability = async () => {
-  const response = await fetch("/api/availability")
-  if (!response.ok) {
-    throw new Error(`Loading availability failed (${response.status})`)
-  }
-  const body: unknown = await response.json()
-  // SAFETY: the Worker serves this route from the same shared Availability type.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return body as Availability
-}
 
 export const postBookingRequest = async (
   booking: Booking,

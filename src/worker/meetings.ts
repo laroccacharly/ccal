@@ -1,6 +1,8 @@
 import { MEETING_MINUTES } from "@ccal/shared/availability"
 import { createMeeting, refreshAccessToken } from "@ccal/shared/google"
-import { Config, Effect, Redacted, Result } from "effect"
+import { Config, Effect, Option, Redacted, Result } from "effect"
+import type { HttpClient } from "effect/http"
+import type { SqlError } from "effect/sql"
 import { SqlClient } from "effect/sql"
 
 // How often Cloudflare runs the retry of meetings that are not created yet.
@@ -25,67 +27,83 @@ const unfinishedMeetings = (sql: SqlClient.SqlClient) => sql<UnfinishedMeeting>`
 `
 
 /** The meeting of a booking request, unless it is already created. */
-export const unfinishedMeeting = Effect.fn("unfinishedMeeting")(
-  function* unfinishedMeeting(bookingRequestId: number) {
-    const sql = yield* SqlClient.SqlClient
-    const rows =
-      yield* sql<UnfinishedMeeting>`${unfinishedMeetings(sql)} AND m.bookingRequestId = ${bookingRequestId}`
-    return rows[0]
-  }
-)
+export const unfinishedMeeting: (
+  bookingRequestId: number
+) => Effect.Effect<
+  Option.Option<UnfinishedMeeting>,
+  SqlError.SqlError,
+  SqlClient.SqlClient
+> = Effect.fn("unfinishedMeeting")(function* unfinishedMeeting(
+  bookingRequestId: number
+) {
+  const sql = yield* SqlClient.SqlClient
+  const rows =
+    yield* sql<UnfinishedMeeting>`${unfinishedMeetings(sql)} AND m.bookingRequestId = ${bookingRequestId}`
+  return Option.fromNullishOr(rows[0])
+})
 
 /**
  * Creates the Google Meet of a booking request, emailing the invite to the booker, and records how it went.
  * A failure (e.g. Google refusing the refresh token) is recorded on the meeting for the next retry, not raised.
  */
-export const createBookingMeeting = Effect.fn("createBookingMeeting")(
-  function* createBookingMeeting(meeting: UnfinishedMeeting) {
-    const sql = yield* SqlClient.SqlClient
-    const start = new Date(meeting.startsAt)
-    const result = yield* Effect.result(
-      Effect.gen(function* attempt() {
-        const refreshToken = yield* Config.Redacted("GOOGLE_REFRESH_TOKEN")
-        const { access_token } = yield* refreshAccessToken(
-          Redacted.value(refreshToken)
-        )
-        return yield* createMeeting(access_token, {
-          id: meeting.eventId,
-          title: `Meeting with ${meeting.name}`,
-          description: meeting.description,
-          start,
-          end: new Date(start.getTime() + MEETING_MINUTES * 60_000),
-          emails: [meeting.email],
-        })
+export const createBookingMeeting: (
+  meeting: UnfinishedMeeting
+) => Effect.Effect<
+  "created" | "failed",
+  SqlError.SqlError,
+  HttpClient.HttpClient | SqlClient.SqlClient
+> = Effect.fn("createBookingMeeting")(function* createBookingMeeting(
+  meeting: UnfinishedMeeting
+) {
+  const sql = yield* SqlClient.SqlClient
+  const start = new Date(meeting.startsAt)
+  const result = yield* Effect.result(
+    Effect.gen(function* attempt() {
+      const refreshToken = yield* Config.Redacted("GOOGLE_REFRESH_TOKEN")
+      const { access_token } = yield* refreshAccessToken(
+        Redacted.value(refreshToken)
+      )
+      return yield* createMeeting(access_token, {
+        id: meeting.eventId,
+        title: `Meeting with ${meeting.name}`,
+        description: meeting.description,
+        start,
+        end: new Date(start.getTime() + MEETING_MINUTES * 60_000),
+        emails: [meeting.email],
       })
-    )
-    if (Result.isSuccess(result)) {
-      yield* sql`
+    })
+  )
+  if (Result.isSuccess(result)) {
+    yield* sql`
       UPDATE meetings
       SET status = 'created', meetLink = ${result.success.hangoutLink ?? null}, attempts = attempts + 1,
         lastError = NULL, updatedAt = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE bookingRequestId = ${meeting.bookingRequestId}
     `
-      return "created" as const
-    }
-    yield* Effect.logWarning(
-      `Creating the meeting of booking request ${meeting.bookingRequestId} failed`,
-      result.failure
-    )
-    // A concurrent attempt may have created it meanwhile; never mark a created meeting failed.
-    yield* sql`
+    return "created" as const
+  }
+  yield* Effect.logWarning(
+    `Creating the meeting of booking request ${meeting.bookingRequestId} failed`,
+    result.failure
+  )
+  // A concurrent attempt may have created it meanwhile; never mark a created meeting failed.
+  yield* sql`
     UPDATE meetings
     SET status = 'failed', attempts = attempts + 1, lastError = ${result.failure.message},
       updatedAt = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
     WHERE bookingRequestId = ${meeting.bookingRequestId} AND status != 'created'
   `
-    return "failed" as const
-  }
-)
+  return "failed" as const
+})
 
 /** Tries again to create the meetings that are not created yet, for bookings still to come. */
-export const retryMeetings = Effect.fn("retryMeetings")(function* retryMeetings(
+export const retryMeetings: (
   now: number
-) {
+) => Effect.Effect<
+  ("created" | "failed")[],
+  SqlError.SqlError,
+  HttpClient.HttpClient | SqlClient.SqlClient
+> = Effect.fn("retryMeetings")(function* retryMeetings(now: number) {
   const sql = yield* SqlClient.SqlClient
   const due = yield* sql<UnfinishedMeeting>`
     ${unfinishedMeetings(sql)} AND b.startsAt > ${new Date(now).toISOString()}

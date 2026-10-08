@@ -12,7 +12,9 @@ const toConfigError = (error: { readonly message: string }) =>
 // The host of the saved URL, where visitors load the app. None when no URL is saved.
 const savedHostname = Effect.gen(function* savedHostname() {
   const { url } = yield* readSettings()
-  return url === undefined ? undefined : new URL(url).hostname
+  return Option.fromNullishOr(url).pipe(
+    Option.map((value) => new URL(value).hostname)
+  )
 })
 
 /**
@@ -25,8 +27,8 @@ export const deploymentConfig = ConfigProvider.layerAdd(
     const hostname = yield* savedHostname
     const login = yield* readGoogleLogin
     const config: Record<string, string> = {}
-    if (hostname !== undefined) {
-      config.CCAL_HOSTNAME = hostname
+    if (Option.isSome(hostname)) {
+      config.CCAL_HOSTNAME = hostname.value
     }
     if (Option.isSome(login) && login.value.refresh_token !== "") {
       config.GOOGLE_REFRESH_TOKEN = login.value.refresh_token

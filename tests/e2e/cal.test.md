@@ -5,6 +5,7 @@
 - Assert the page content contains "Google Meet"
 - Assert url contains "#" (hashrouter)
 - Assert url contains "form"
+- Assert the Foldkit booking page remounts with fresh selection after navigating to confirmation and going back
 
 # Loading
 
@@ -33,6 +34,7 @@
   - Fake the server's clock to September 29 2026 (September shown, banner shown) and to October 1 2026 (October shown, no banner)
 - Assert the calendar only offers the days the server says are available
 - Assert that when the available days cannot be loaded, a "Could not load available days" banner is shown on top of the calendar days
+- Assert a malformed successful availability response shows the error banner and leaves booking disabled
 
 # Time select
 
@@ -40,6 +42,7 @@
 - Assert the time picker shows 3 time slots
 - Assert default time zone is Montreal Canada.
 - Assert time slots in Montreal time zone are: 13:30, 15:30 and 16:30.
+- Assert each time slot has an accessible label with its displayed time and time zone
 - Assert switching the time zone updates the time slots accordingly
   - On October 3 2026: Vancouver (America/Vancouver) shows 10:30, 12:30 and 13:30, and France (Europe/Paris) shows 19:30, 21:30 and 22:30
 - Assert there is a "Current time: " with the current time for the selected time zone: 10:00 in Montreal (with a 1 minute tolerance)
@@ -47,6 +50,7 @@
 - Assert the time slots offered for a date are the ones the server gives for that date
 - Assert the confirm button is greyed out and disabled until a time slot is selected
 - Assert the confirm button is enabled once a time slot is selected
+- Assert selecting another date clears the selected time slot and disables confirmation
 - Assert clicking the confirm button navigates to the confirmation page
 
 # Confirmation page

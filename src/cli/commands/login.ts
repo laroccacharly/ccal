@@ -18,10 +18,10 @@ const IdTokenPayload = Schema.fromJsonString(
   Schema.Struct({ email: Schema.optional(Schema.String) })
 )
 
-const emailFromIdToken = (idToken: string | undefined) =>
+const emailFromIdToken = (idToken?: string) =>
   Option.fromNullishOr(idToken?.split(".")[1]).pipe(
     Option.flatMap((payload) =>
-      Schema.decodeUnknownOption(IdTokenPayload)(
+      Schema.decodeOption(IdTokenPayload)(
         Buffer.from(payload, "base64url").toString()
       )
     ),
@@ -129,13 +129,15 @@ export const loginCommand = Command.make("login", {}, () =>
       code_verifier: verifier,
     })
     if (body.refresh_token === undefined || body.refresh_token === "") {
-      yield* new GoogleError({
+      return yield* new GoogleError({
         detail:
           "Google did not return a refresh token; try `ccal login` again.",
       })
     }
     const email = emailFromIdToken(body.id_token)
     yield* saveGoogleLogin(googleLoginFromResponse(body, email))
-    yield* Console.log(`Logged in${email === undefined ? "" : ` as ${email}`}.`)
+    return yield* Console.log(
+      `Logged in${email === undefined ? "" : ` as ${email}`}.`
+    )
   })
 ).pipe(Command.withDescription("Log in with Google"))

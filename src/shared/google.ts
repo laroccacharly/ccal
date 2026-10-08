@@ -58,7 +58,7 @@ const googleUrls = Effect.gen(function* googleUrls() {
 })
 
 // Sends `request` and decodes a successful response; on failure, keeps Google's explanation (e.g. "invalid_grant").
-const send = <A>(what: string, schema: Schema.Codec<A, unknown>) =>
+const send = <A, I>(what: string, schema: Schema.Codec<A, I>) =>
   Effect.fn(
     function* sendRequest(request: HttpClientRequest.HttpClientRequest) {
       const response = yield* (yield* HttpClient.HttpClient).execute(request)
@@ -79,7 +79,13 @@ const send = <A>(what: string, schema: Schema.Codec<A, unknown>) =>
     )
   )
 
-export const requestToken = Effect.fn("requestToken")(function* requestToken(
+export const requestToken: (
+  params: Record<string, string>
+) => Effect.Effect<
+  typeof TokenResponse.Type,
+  Config.ConfigError | GoogleError,
+  HttpClient.HttpClient
+> = Effect.fn("requestToken")(function* requestToken(
   params: Record<string, string>
 ) {
   const { id, secret } = yield* clientCredentials
@@ -98,20 +104,29 @@ export const requestToken = Effect.fn("requestToken")(function* requestToken(
 export const refreshAccessToken = (refreshToken: string) =>
   requestToken({ grant_type: "refresh_token", refresh_token: refreshToken })
 
+interface MeetingInput {
+  readonly id?: string
+  readonly title: string
+  readonly description?: string
+  readonly start: Date
+  readonly end: Date
+  readonly emails: readonly string[]
+}
+
 /**
  * Creates the event with a Meet link and has Google email the invite to the attendees. With an `id` (5 to 1024
  * characters from a-v and 0-9), creating the same event again returns the existing one instead of a duplicate.
  */
-export const createMeeting = Effect.fn("createMeeting")(function* createMeeting(
+export const createMeeting: (
   accessToken: string,
-  event: {
-    readonly id?: string
-    readonly title: string
-    readonly description?: string
-    readonly start: Date
-    readonly end: Date
-    readonly emails: readonly string[]
-  }
+  event: MeetingInput
+) => Effect.Effect<
+  typeof Event.Type,
+  Config.ConfigError | GoogleError,
+  HttpClient.HttpClient
+> = Effect.fn("createMeeting")(function* createMeeting(
+  accessToken: string,
+  event: MeetingInput
 ) {
   const urls = yield* googleUrls
   const insert = HttpClientRequest.post(urls.events).pipe(

@@ -1,5 +1,6 @@
 import type { TokenResponse } from "@ccal/shared/google"
 import { GoogleError, refreshAccessToken } from "@ccal/shared/google"
+import type { Config, PlatformError } from "effect"
 import { Effect, FileSystem, Option, Path, Schema } from "effect"
 
 import { googleLoginPath } from "./paths"
@@ -14,22 +15,26 @@ export class GoogleLogin extends Schema.Class<GoogleLogin>("GoogleLogin")({
 
 const GoogleLoginJson = Schema.fromJsonString(GoogleLogin, { space: 2 })
 
-export const saveGoogleLogin = Effect.fn("saveGoogleLogin")(
-  function* saveGoogleLogin(login: GoogleLogin) {
-    const fs = yield* FileSystem.FileSystem
-    const path = yield* Path.Path
-    const destination = yield* googleLoginPath()
-    yield* fs.makeDirectory(path.dirname(destination), {
-      recursive: true,
-      mode: 0o700,
-    })
-    yield* fs.writeFileString(
-      destination,
-      yield* Schema.encodeEffect(GoogleLoginJson)(login),
-      { mode: 0o600 }
-    )
-  }
-)
+export const saveGoogleLogin: (
+  login: GoogleLogin
+) => Effect.Effect<
+  void,
+  Config.ConfigError | Schema.SchemaError | PlatformError.PlatformError,
+  Path.Path | FileSystem.FileSystem
+> = Effect.fn("saveGoogleLogin")(function* saveGoogleLogin(login: GoogleLogin) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const destination = yield* googleLoginPath()
+  yield* fs.makeDirectory(path.dirname(destination), {
+    recursive: true,
+    mode: 0o700,
+  })
+  yield* fs.writeFileString(
+    destination,
+    yield* Schema.encodeEffect(GoogleLoginJson)(login),
+    { mode: 0o600 }
+  )
+})
 
 const expiresAt = (expiresIn: number) => Date.now() + expiresIn * 1000
 

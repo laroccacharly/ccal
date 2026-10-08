@@ -129,9 +129,13 @@ const boundingBox = async (locator: Locator) => {
 // Asserts the current time shown is `expected` ("HH:mm"), within a minute.
 const expectCurrentTime = async (page: Page, expected: string) => {
   await expect(currentTime(page)).toHaveText(/^Current time: \d{2}:\d{2}$/u)
-  const text = (await currentTime(page).textContent()) ?? ""
-  const shown = toMinutes(text.replace("Current time:", ""))
-  expect(minutesApart(shown, toMinutes(expected))).toBeLessThanOrEqual(1)
+  await expect
+    .poll(async () => {
+      const text = (await currentTime(page).textContent()) ?? ""
+      const shown = toMinutes(text.replace("Current time:", ""))
+      return minutesApart(shown, toMinutes(expected))
+    })
+    .toBeLessThanOrEqual(1)
 }
 
 // Waits until the available days are loaded (or failed to load). The month label renders together with the loading
@@ -183,6 +187,7 @@ const goToConfirmation = async (page: Page, timeZone = MONTREAL) => {
   const date = await selectFirstAvailableDate(page)
   await timezoneSelect(page).selectOption(timeZone)
   const slot = timeSlots(page).first()
+  await expect(slot).toHaveAttribute("aria-label", new RegExp(timeZone, "u"))
   const time = (await slot.textContent()) ?? ""
   await slot.click()
   await confirmButton(page).click()
@@ -292,6 +297,22 @@ test.beforeEach(async ({ page }) => {
 test.describe("Page load", () => {
   test("shows the meeting type", async ({ page }) => {
     await expect(page.locator("body")).toContainText("Google Meet")
+  })
+
+  test("remounts the booking page with fresh selection after going back", async ({
+    page,
+  }) => {
+    await goToConfirmation(page)
+    await expect(page.getByTestId("foldkit-booking")).toHaveCount(0)
+    await page.goBack()
+    await waitForAvailability(page)
+    await expect(page.getByTestId("foldkit-booking")).toBeVisible()
+    await expect(selectedDate(page)).toHaveText("Select a date")
+    await expect(confirmButton(page)).toBeDisabled()
+    await selectFirstAvailableDate(page)
+    await timeSlots(page).first().click()
+    await confirmButton(page).click()
+    await expect(page.getByTestId("confirmation-page")).toBeVisible()
   })
 
   test("uses a hash router on the form route", async ({ page }) => {
@@ -484,6 +505,20 @@ test.describe("Date select", () => {
     ).toEqual(offered)
   })
 
+  test("rejects malformed successful availability responses", async ({
+    page,
+  }) => {
+    await page.route("**/api/availability", async (route) => {
+      await route.fulfill({ json: { days: "not an array" } })
+    })
+    await page.goto("/")
+    await expect(page.getByTestId("availability-error")).toHaveText(
+      "Could not load available days"
+    )
+    await expect(enabledDays(page)).toHaveCount(0)
+    await expect(confirmButton(page)).toBeDisabled()
+  })
+
   test('shows a "Could not load available days" banner when the available days cannot be loaded', async ({
     page,
   }) => {
@@ -512,6 +547,21 @@ test.describe("Time select", () => {
     for (const slot of await timeSlots(page).all()) {
       await expect(slot).toBeEnabled()
     }
+  })
+
+  test("time slots have accessible labels with their time and time zone", async ({
+    page,
+  }) => {
+    await selectFirstAvailableDate(page)
+    await expect(timeSlots(page).first()).toHaveAttribute(
+      "aria-label",
+      "13:30 (America/Toronto)"
+    )
+    await timezoneSelect(page).selectOption(PARIS)
+    await expect(timeSlots(page).first()).toHaveAttribute(
+      "aria-label",
+      "19:30 (Europe/Paris)"
+    )
   })
 
   test("shows 3 time slots", async ({ page }) => {
@@ -581,6 +631,19 @@ test.describe("Time select", () => {
     await expect(confirmButton(page)).toBeDisabled()
     await timeSlots(page).first().click()
     await expect(confirmButton(page)).toBeEnabled()
+  })
+
+  test("selecting another date clears the selected time slot", async ({
+    page,
+  }) => {
+    await selectFirstAvailableDate(page)
+    await timeSlots(page).first().click()
+    await expect(confirmButton(page)).toBeEnabled()
+    await enabledDays(page).nth(1).click()
+    await expect(confirmButton(page)).toBeDisabled()
+    await expect(
+      page.locator('[data-testid="time-slot"][aria-pressed="true"]')
+    ).toHaveCount(0)
   })
 
   test("clicking confirm navigates to the confirmation page", async ({

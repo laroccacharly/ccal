@@ -1,3 +1,4 @@
+import type { Config, PlatformError } from "effect"
 import { Effect, FileSystem, Path, Schema } from "effect"
 
 import { settingsPath } from "./paths"
@@ -29,7 +30,11 @@ export class InvalidUrl extends Schema.TaggedError<InvalidUrl>()("InvalidUrl", {
   }
 }
 
-export const readSettings = Effect.fn("readSettings")(function* readSettings() {
+export const readSettings: () => Effect.Effect<
+  Settings,
+  Config.ConfigError | PlatformError.PlatformError | InvalidSettingsFile,
+  Path.Path | FileSystem.FileSystem
+> = Effect.fn("readSettings")(function* readSettings() {
   const fs = yield* FileSystem.FileSystem
   const path = yield* settingsPath()
   if (!(yield* fs.exists(path))) {
@@ -40,9 +45,13 @@ export const readSettings = Effect.fn("readSettings")(function* readSettings() {
   ).pipe(Effect.mapError(() => new InvalidSettingsFile({ path })))
 })
 
-const writeSettings = Effect.fn("writeSettings")(function* writeSettings(
+const writeSettings: (
   settings: Settings
-) {
+) => Effect.Effect<
+  Settings,
+  Config.ConfigError | Schema.SchemaError | PlatformError.PlatformError,
+  Path.Path | FileSystem.FileSystem
+> = Effect.fn("writeSettings")(function* writeSettings(settings: Settings) {
   const fs = yield* FileSystem.FileSystem
   const paths = yield* Path.Path
   const destination = yield* settingsPath()
@@ -55,7 +64,17 @@ const writeSettings = Effect.fn("writeSettings")(function* writeSettings(
 })
 
 /** Saves the Worker URL, keeping only its origin (scheme, host and port). */
-export const setUrl = Effect.fn("setUrl")(function* setUrl(value: string) {
+export const setUrl: (
+  value: string
+) => Effect.Effect<
+  Settings,
+  | Config.ConfigError
+  | Schema.SchemaError
+  | PlatformError.PlatformError
+  | InvalidSettingsFile
+  | InvalidUrl,
+  Path.Path | FileSystem.FileSystem
+> = Effect.fn("setUrl")(function* setUrl(value: string) {
   const url = yield* Effect.try({
     try: () => new URL(value),
     catch: () => new InvalidUrl({ value }),

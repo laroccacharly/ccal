@@ -1,4 +1,5 @@
 import { Clock, Config, Effect, Schema } from "effect"
+import type { SqlError } from "effect/sql"
 import { SqlClient } from "effect/sql"
 
 export class TestClockDisabled extends Schema.TaggedError<TestClockDisabled>()(
@@ -43,8 +44,10 @@ export const requireTestClock = Effect.gen(function* requireTestClock() {
 
 // Sets the test clock to a fixed time, or resets it with null; it returns the time set, as an ISO datetime.
 // It is kept in D1 rather than in memory, since requests may land on different isolates.
-export const writeTestClock = Effect.fn("writeTestClock")(
-  function* writeTestClock(now: string | null) {
+export const writeTestClock: (
+  now: string | null
+) => Effect.Effect<string | null, SqlError.SqlError, SqlClient.SqlClient> =
+  Effect.fn("writeTestClock")(function* writeTestClock(now: string | null) {
     const sql = yield* SqlClient.SqlClient
     if (now === null) {
       yield* sql`DELETE FROM test_clock`
@@ -56,5 +59,4 @@ export const writeTestClock = Effect.fn("writeTestClock")(
       ON CONFLICT (id) DO UPDATE SET now = excluded.now
     `
     return iso
-  }
-)
+  })

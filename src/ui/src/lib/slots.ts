@@ -1,4 +1,4 @@
-import type { AvailableSlot } from "@ccal/shared"
+import type { AvailableSlot, Slot } from "@ccal/shared"
 
 export {
   HOST_TIME_ZONE,
@@ -8,10 +8,7 @@ export {
 } from "@ccal/shared/availability"
 
 // A bookable slot from the server (`startsAt`, an ISO datetime), labelled "HH:mm" in the visitor's chosen zone.
-export interface Slot {
-  startsAt: string
-  label: string
-}
+export type { Slot } from "@ccal/shared"
 
 // The server gives each slot's time in every offered zone, so the UI never converts times itself.
 export const slotsIn = (slots: AvailableSlot[], timeZone: string): Slot[] =>

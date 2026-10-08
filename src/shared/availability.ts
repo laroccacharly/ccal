@@ -1,3 +1,5 @@
+import { Option } from "effect"
+
 import type { Availability } from "./types"
 
 // Meeting slots are defined in Montreal wall-clock time and shown in the visitor's chosen zone.
@@ -150,5 +152,7 @@ export const findSlot = (startsAt: string, now: number) => {
   const found = bookableDays(now)
     .days.flatMap((day) => day.instants)
     .find((slotInstant) => slotInstant === instant)
-  return found === undefined ? undefined : new Date(found).toISOString()
+  return Option.fromNullishOr(found).pipe(
+    Option.map((slotInstant) => new Date(slotInstant).toISOString())
+  )
 }

@@ -46,12 +46,12 @@ const create = Command.make(
       onSome: (value) => new Date(value),
     })
     if (Number.isNaN(start.getTime())) {
-      yield* new InvalidMeeting({
+      return yield* new InvalidMeeting({
         detail: `Invalid --start: ${Option.getOrElse(startFlag, () => "")}`,
       })
     }
     if (duration <= 0) {
-      yield* new InvalidMeeting({
+      return yield* new InvalidMeeting({
         detail: `Invalid --duration: ${duration}`,
       })
     }
@@ -64,7 +64,7 @@ const create = Command.make(
       emails: email,
     })
     yield* Console.log(event.hangoutLink ?? "(no Meet link was returned)")
-    yield* Console.error(
+    return yield* Console.error(
       `Invite sent to ${email.join(", ")} for ${start.toLocaleString()}.`
     )
   })

@@ -1,7 +1,9 @@
 import type { BookingRequest } from "@ccal/shared"
 import { TIME_ZONES, availabilityAt, findSlot } from "@ccal/shared/availability"
+import type { RuntimeContext } from "alchemy"
 import * as Cloudflare from "alchemy/Cloudflare"
-import { Clock, Config, Effect, Layer, Redacted, Schema } from "effect"
+import { Clock, Config, Effect, Layer, Option, Redacted, Schema } from "effect"
+import type { HttpBody } from "effect/http"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 
 import { insertBookingRequest, listBookingRequests } from "./bookings"
@@ -41,7 +43,7 @@ const BookingRequestBody = Schema.Struct({
   name: Schema.NonEmptyString,
   email: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
-}) satisfies Schema.Codec<BookingRequest, unknown>
+}) satisfies Schema.Schema<BookingRequest>
 
 const BookingSearchParams = Schema.Struct({
   email: Schema.optionalKey(Schema.String),
@@ -58,12 +60,15 @@ const availability = Effect.gen(function* availability() {
 const createBookingRequest = Effect.gen(function* createBookingRequest() {
   const body = yield* HttpServerRequest.schemaBodyJson(BookingRequestBody)
   const startsAt = findSlot(body.startsAt, yield* currentTime)
-  if (startsAt === undefined) {
+  if (Option.isNone(startsAt)) {
     return yield* new SlotUnavailable()
   }
-  yield* verifyTurnstile(body.turnstileToken)
+  yield* verifyTurnstile(Option.fromNullishOr(body.turnstileToken))
   const { turnstileToken: _token, ...details } = body
-  const booking = yield* insertBookingRequest({ ...details, startsAt })
+  const booking = yield* insertBookingRequest({
+    ...details,
+    startsAt: startsAt.value,
+  })
   const context = yield* Cloudflare.Workers.WorkerExecutionContext
   // The email failure must not fail the request, but it must not vanish either. `waitUntil` only reports a rejection
   // in production (locally workerd swallows it), so log it at error level first — visible in the dev log and matched
@@ -72,9 +77,11 @@ const createBookingRequest = Effect.gen(function* createBookingRequest() {
     notifyAdmin(booking).pipe(Effect.tapCause(Effect.logError), Effect.orDie)
   )
   const meeting = yield* unfinishedMeeting(booking.id)
-  if (meeting !== undefined) {
+  if (Option.isSome(meeting)) {
     yield* context.waitUntil(
-      createBookingMeeting(meeting).pipe(Effect.catchCause(Effect.logError))
+      createBookingMeeting(meeting.value).pipe(
+        Effect.catchCause(Effect.logError)
+      )
     )
   }
   return yield* HttpServerResponse.json(booking, { status: 201 })
@@ -119,7 +126,13 @@ const testClock = Effect.gen(function* testClock() {
 })
 
 // The Worker version serving this request (id, tag and timestamp), e.g. to wait for a deploy to be live.
-const version = Effect.fn("version")(function* version(
+const version: (
+  versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
+) => Effect.Effect<
+  HttpServerResponse.HttpServerResponse,
+  HttpBody.HttpBodyError,
+  RuntimeContext
+> = Effect.fn("version")(function* version(
   versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
 ) {
   const { id, tag, timestamp } = yield* versionMetadata

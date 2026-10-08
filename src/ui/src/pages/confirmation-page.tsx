@@ -1,5 +1,5 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog"
-import type { Contact } from "@ccal/shared"
+import type { Contact, Booking } from "@ccal/shared"
 import { useState } from "react"
 
 import { Turnstile } from "@/components/turnstile"
@@ -9,7 +9,6 @@ import { formatSelectedDate } from "@/lib/dates"
 import { timeZoneLabel } from "@/lib/slots"
 import { validateContact } from "@/lib/validation"
 import type { ContactErrors } from "@/lib/validation"
-import type { Booking } from "@/pages/booking-page"
 
 const fieldClass =
   "rounded-2xl border bg-background px-3 py-2 text-sm aria-invalid:border-destructive"

@@ -31,6 +31,10 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
     // The host of `ccal config --set-url` (provided by alchemy.run.ts), where visitors load the app and solve Turnstile.
     // Required, with no default: callers such as `bun dev` and Playwright pass "localhost" themselves.
     const hostname = yield* Config.String("CCAL_HOSTNAME")
+    const domain: Pick<Cloudflare.WorkerProps, "domain"> = {}
+    if (!hostname.endsWith(".workers.dev")) {
+      domain.domain = hostname
+    }
     return {
       name: "ccal",
       main: import.meta.url,
@@ -52,7 +56,7 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
       },
       // Attached as a custom domain, except a workers.dev address, which Cloudflare serves without one.
       // `alchemy dev` ignores it.
-      domain: hostname.endsWith(".workers.dev") ? undefined : hostname,
+      ...domain,
       env: {
         // Required to read bookings (GET /api/booking-requests). Set it in .env or the environment.
         CCAL_API_KEY: Config.Redacted("CCAL_API_KEY"),

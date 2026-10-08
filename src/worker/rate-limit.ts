@@ -1,3 +1,4 @@
+import type { RuntimeContext } from "alchemy"
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Effect, Option, Schema } from "effect"
 import { HttpServerRequest } from "effect/http"
@@ -32,7 +33,13 @@ export class RateLimitUnavailable extends Schema.TaggedError<RateLimitUnavailabl
 const clientKey = (request: HttpServerRequest.HttpServerRequest) =>
   request.headers["cf-connecting-ip"] ?? "unknown-client"
 
-export const rateLimit = Effect.fn("rateLimit")(function* rateLimit(
+export const rateLimit: (
+  limiter: Cloudflare.RateLimitClient
+) => Effect.Effect<
+  void,
+  RateLimitUnavailable | RateLimited,
+  HttpServerRequest.HttpServerRequest | RuntimeContext
+> = Effect.fn("rateLimit")(function* rateLimit(
   limiter: Cloudflare.RateLimitClient
 ) {
   const request = yield* HttpServerRequest.HttpServerRequest

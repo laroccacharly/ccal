@@ -1,3 +1,4 @@
+import type { Booking } from "@ccal/shared"
 import {
   HashRouter,
   Navigate,
@@ -8,7 +9,6 @@ import {
 } from "react-router"
 
 import { BookingPage } from "@/pages/booking-page"
-import type { Booking } from "@/pages/booking-page"
 import { ConfirmationPage } from "@/pages/confirmation-page"
 import { SuccessPage } from "@/pages/success-page"
 import type { ConfirmedBooking } from "@/pages/success-page"

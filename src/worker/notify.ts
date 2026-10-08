@@ -1,6 +1,7 @@
 import type { BookingRequest } from "@ccal/shared"
 import { Cmail } from "cmail-client"
 import { Config, Effect, Schema } from "effect"
+import type { HttpClient } from "effect/http"
 
 export class AdminEmailNotSent extends Schema.TaggedError<AdminEmailNotSent>()(
   "AdminEmailNotSent",
@@ -24,7 +25,17 @@ const bookedAt = ({ startsAt, timeZone }: BookingRequest) =>
  * Emails ADMIN_EMAIL, through cmail, that a booking request came in. CMAIL_ORIGIN, when set, stands in for
  * cmail's server: the end-to-end tests point the Worker at a fake.
  */
-export const notifyAdmin = Effect.fn("notifyAdmin")(
+export const notifyAdmin: (booking: BookingRequest) => Effect.Effect<
+  {
+    readonly id: number
+    readonly messageId: string
+    readonly to: string
+    readonly from: string
+    readonly title: string
+  },
+  AdminEmailNotSent,
+  HttpClient.HttpClient
+> = Effect.fn("notifyAdmin")(
   function* notifyAdmin(booking: BookingRequest) {
     const to = yield* Config.String("ADMIN_EMAIL")
     const cmail = yield* Cmail
