@@ -10,7 +10,7 @@ interface TurnstileApi {
       sitekey: string
       action: string
       size: "flexible"
-      theme: "light"
+      theme: "dark"
       callback: (token: string) => void
       "error-callback": () => void
       "expired-callback": () => void
@@ -93,8 +93,8 @@ const Widget = ({ onToken, onRetry }: Props & { onRetry: () => void }) => {
         action: "booking",
         // Fills the container width at a fixed 65px height, instead of the compact square.
         size: "flexible",
-        // The page is always light; the default "auto" follows the OS and turns dark on a dark-mode system.
-        theme: "light",
+        // Match the dark-only page, regardless of the OS preference.
+        theme: "dark",
         callback: (token) => {
           onToken(token)
           setStatus("Verification complete")

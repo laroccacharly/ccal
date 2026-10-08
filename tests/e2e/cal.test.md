@@ -5,6 +5,7 @@
 - Assert the page content contains "Google Meet"
 - Assert url contains "#" (hashrouter)
 - Assert url contains "form"
+- Assert the page always uses dark mode and a dark browser color scheme, even when the system prefers light mode
 - Assert the Foldkit booking page remounts with fresh selection after navigating to confirmation and going back
 
 # Loading
@@ -77,7 +78,7 @@
 
 # Turnstile
 
-- The final confirmation dialog renders a Managed Turnstile widget explicitly; OK stays disabled until its callback supplies a token.
+- The final confirmation dialog renders a Managed Turnstile widget explicitly in dark mode; OK stays disabled until its callback supplies a token.
 - Closing the dialog removes the widget; reopening starts fresh. Errors and expiry clear the token and offer a retry.
 - A failed booking submission resets verification before another attempt.
 - The UI sends the token in the booking JSON; the Worker verifies it before storing anything or scheduling notifications or meetings.

@@ -267,6 +267,7 @@ const FAKE_TURNSTILE = `
     render(container, options) {
       const id = "widget-" + (widgets.size + 1);
       const element = typeof container === "string" ? document.querySelector(container) : container;
+      if (options.theme !== "dark") throw new Error("Expected a dark Turnstile widget");
       element.textContent = "test widget";
       widgets.set(id, options);
       pass(id);
@@ -295,6 +296,21 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe("Page load", () => {
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`always uses dark mode with a ${colorScheme} system preference`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme })
+      await page.reload()
+      await expect(page.locator("html")).toHaveClass("dark")
+      await expect(page.locator("html")).toHaveCSS("color-scheme", "dark only")
+      await expect(page.locator("body")).toHaveCSS(
+        "background-color",
+        "oklch(0.153 0.006 107.1)"
+      )
+    })
+  }
+
   test("shows the meeting type", async ({ page }) => {
     await expect(page.locator("body")).toContainText("Google Meet")
   })
