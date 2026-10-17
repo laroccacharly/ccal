@@ -15,7 +15,7 @@ export class GoogleError extends Schema.TaggedError<GoogleError>()(
   {
     detail: Schema.String,
     // The HTTP status Google answered with, if it answered
-    status: Schema.optional(Schema.Number),
+    status: Schema.optional(Schema.Finite),
   }
 ) {
   override get message(): string {
@@ -25,7 +25,7 @@ export class GoogleError extends Schema.TaggedError<GoogleError>()(
 
 export const TokenResponse = Schema.Struct({
   access_token: Schema.String,
-  expires_in: Schema.Number,
+  expires_in: Schema.Finite,
   refresh_token: Schema.optional(Schema.String),
   id_token: Schema.optional(Schema.String),
 })

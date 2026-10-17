@@ -22,7 +22,7 @@
         "oxlint": "^1.86.0",
         "oxlint-plugin-anti-slop": "github:dmmulroy/anti-slop#c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b",
         "oxlint-tsgolint": "^7.0.2003",
-        "ts-lint": "github:laroccacharly/ts-lint#v0.3.0",
+        "ts-lint": "github:laroccacharly/ts-lint#v0.6.0",
         "typescript": "^7.0.2",
         "ultracite": "^7.12.2",
       },
@@ -1270,7 +1270,7 @@
 
     "toidentifier": ["toidentifier@1.0.1", "", {}, "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA=="],
 
-    "ts-lint": ["ts-lint@github:laroccacharly/ts-lint#6f579fb", { "peerDependencies": { "@effect/tsgo": "^0.51.1" }, "bin": { "ts-lint-effect": "./effect-lint.ts" } }, "laroccacharly-ts-lint-6f579fb", "sha512-knzPG4Tost1iszAql5ODFAZpIyRJsTlXGDtOpc0cJQ9msnKxPF9dTgoG3jupxXAc2FB73sVcuQnMrZCdcYPzzA=="],
+    "ts-lint": ["ts-lint@github:laroccacharly/ts-lint#c842132", { "peerDependencies": { "@effect/tsgo": "^0.51.1" }, "bin": { "ts-lint-effect": "./effect-lint.ts" } }, "laroccacharly-ts-lint-c842132", "sha512-EVIJOv54+sfVO0ixXpZ13omcgEvfoc3lLACNTx5awmqRW7nlXTiZIvLzjcqNugDRjgD97/fFE8M/jqbx94h30w=="],
 
     "ts-morph": ["ts-morph@26.0.0", "", { "dependencies": { "@ts-morph/common": "~0.27.0", "code-block-writer": "^13.0.3" } }, "sha512-ztMO++owQnz8c/gIENcM9XfCEzgoGphTv+nKpYNM1bgsdOVC/jRZuEBf6N+mLLDNg68Kl+GgUZfOySaRiG1/Ug=="],
 

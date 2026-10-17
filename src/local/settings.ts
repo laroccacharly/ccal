@@ -30,17 +30,17 @@ export class InvalidUrl extends Schema.TaggedError<InvalidUrl>()("InvalidUrl", {
   }
 }
 
-export const readSettings: () => Effect.Effect<
+export const readSettings: Effect.Effect<
   Settings,
   Config.ConfigError | PlatformError.PlatformError | InvalidSettingsFile,
   Path.Path | FileSystem.FileSystem
-> = Effect.fn("readSettings")(function* readSettings() {
+> = Effect.gen(function* readSettings() {
   const fs = yield* FileSystem.FileSystem
-  const path = yield* settingsPath()
+  const path = yield* settingsPath
   if (!(yield* fs.exists(path))) {
     return new Settings({})
   }
-  return yield* Schema.decodeUnknownEffect(SettingsJson)(
+  return yield* Schema.decodeEffect(SettingsJson)(
     yield* fs.readFileString(path)
   ).pipe(Effect.mapError(() => new InvalidSettingsFile({ path })))
 })
@@ -54,7 +54,7 @@ const writeSettings: (
 > = Effect.fn("writeSettings")(function* writeSettings(settings: Settings) {
   const fs = yield* FileSystem.FileSystem
   const paths = yield* Path.Path
-  const destination = yield* settingsPath()
+  const destination = yield* settingsPath
   yield* fs.makeDirectory(paths.dirname(destination), { recursive: true })
   yield* fs.writeFileString(
     destination,
@@ -83,6 +83,6 @@ export const setUrl: (
     return yield* new InvalidUrl({ value })
   }
   // Settings holds only the URL, but the saved file must still be valid before it is replaced.
-  yield* readSettings()
+  yield* readSettings
   return yield* writeSettings(new Settings({ url: url.origin }))
 })

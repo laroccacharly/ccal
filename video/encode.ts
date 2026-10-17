@@ -10,9 +10,9 @@ const framesDir = `${out}frames/`
 // Written by capture.test.ts: each frame's file and capture time, and when recording stopped, in seconds.
 const Manifest = Schema.Struct({
   frames: Schema.Array(
-    Schema.Struct({ file: Schema.String, time: Schema.Number })
+    Schema.Struct({ file: Schema.String, time: Schema.Finite })
   ),
-  end: Schema.Number,
+  end: Schema.Finite,
 })
 
 // Chrome only emits a frame when something repaints, so each one stays on screen until the next.

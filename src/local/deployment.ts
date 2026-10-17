@@ -11,7 +11,7 @@ const toConfigError = (error: { readonly message: string }) =>
 
 // The host of the saved URL, where visitors load the app. None when no URL is saved.
 const savedHostname = Effect.gen(function* savedHostname() {
-  const { url } = yield* readSettings()
+  const { url } = yield* readSettings
   return Option.fromNullishOr(url).pipe(
     Option.map((value) => new URL(value).hostname)
   )

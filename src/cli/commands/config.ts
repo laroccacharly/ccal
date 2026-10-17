@@ -17,10 +17,10 @@ export const configCommand = Command.make(
   Effect.fn("configCommand")(function* configCommand({ setUrl: url }) {
     const settings = Option.isSome(url)
       ? yield* setUrl(url.value)
-      : yield* readSettings()
+      : yield* readSettings
     yield* Console.log(
       `url: ${settings.url ?? "(not set, use `ccal config --set-url=<url>`)"}`
     )
-    yield* Console.error(`Stored in ${yield* settingsPath()}`)
+    yield* Console.error(`Stored in ${yield* settingsPath}`)
   })
 ).pipe(Command.withDescription("Print the local configuration, or change it"))

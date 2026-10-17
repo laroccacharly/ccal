@@ -9,7 +9,7 @@ import { readSettings } from "../../src/local/settings"
 // Smoke test of the deployed app (tests/smoke): it books for real, so run it only when asked.
 // It targets the URL saved with `ccal config --set-url`; set BASE_URL to test another deployment.
 const savedUrl = await Effect.runPromise(
-  readSettings().pipe(
+  readSettings.pipe(
     Effect.map((settings) => settings.url),
     Effect.provide(NodeServices.layer)
   )

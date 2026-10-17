@@ -41,7 +41,7 @@
     "oxlint": "^1.86.0",
     "oxlint-plugin-anti-slop": "github:dmmulroy/anti-slop#c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b",
     "oxlint-tsgolint": "^7.0.2003",
-    "ts-lint": "github:laroccacharly/ts-lint#v0.3.0",
+    "ts-lint": "github:laroccacharly/ts-lint#v0.6.0",
     "typescript": "^7.0.2",
     "ultracite": "^7.12.2"
   },

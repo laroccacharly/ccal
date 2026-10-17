@@ -9,7 +9,7 @@ import { googleLoginPath } from "./paths"
 export class GoogleLogin extends Schema.Class<GoogleLogin>("GoogleLogin")({
   access_token: Schema.String,
   refresh_token: Schema.String,
-  expires_at: Schema.Number,
+  expires_at: Schema.Finite,
   email: Schema.optional(Schema.String),
 }) {}
 
@@ -24,7 +24,7 @@ export const saveGoogleLogin: (
 > = Effect.fn("saveGoogleLogin")(function* saveGoogleLogin(login: GoogleLogin) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  const destination = yield* googleLoginPath()
+  const destination = yield* googleLoginPath
   yield* fs.makeDirectory(path.dirname(destination), {
     recursive: true,
     mode: 0o700,
@@ -52,11 +52,11 @@ export const googleLoginFromResponse = (
 /** The saved login, if there is one. */
 export const readGoogleLogin = Effect.gen(function* readGoogleLogin() {
   const fs = yield* FileSystem.FileSystem
-  const path = yield* googleLoginPath()
+  const path = yield* googleLoginPath
   if (!(yield* fs.exists(path))) {
     return Option.none<GoogleLogin>()
   }
-  return yield* Schema.decodeUnknownEffect(GoogleLoginJson)(
+  return yield* Schema.decodeEffect(GoogleLoginJson)(
     yield* fs.readFileString(path)
   ).pipe(
     Effect.mapError(
@@ -65,7 +65,7 @@ export const readGoogleLogin = Effect.gen(function* readGoogleLogin() {
           detail: "The saved login is invalid. Run `ccal login` again.",
         })
     ),
-    Effect.map(Option.some)
+    Effect.asSome
   )
 })
 
