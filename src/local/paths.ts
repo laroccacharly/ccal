@@ -1,6 +1,6 @@
 import { Config, Effect, Option, Path } from "effect"
 
-// ~/.config/ccal (or $XDG_CONFIG_HOME/ccal): what ccal keeps on this machine, its settings and its Google login.
+// ~/.config/ccal (or $XDG_CONFIG_HOME/ccal): what ccal keeps on this machine: its Google login.
 export const localDir: Effect.Effect<string, Config.ConfigError, Path.Path> =
   Effect.gen(function* localDir() {
     const path = yield* Path.Path
@@ -10,15 +10,6 @@ export const localDir: Effect.Effect<string, Config.ConfigError, Path.Path> =
       : path.join(yield* Config.String("HOME"), ".config")
     return path.join(base, "ccal")
   })
-
-export const settingsPath: Effect.Effect<
-  string,
-  Config.ConfigError,
-  Path.Path
-> = Effect.gen(function* settingsPath() {
-  const path = yield* Path.Path
-  return path.join(yield* localDir, "config.json")
-})
 
 export const googleLoginPath: Effect.Effect<
   string,

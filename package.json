@@ -15,22 +15,23 @@
     "dev": "bun run build && CCAL_HOSTNAME=localhost alchemy dev",
     "build": "bun --filter ui build",
     "test:e2e": "playwright test",
-    "test:smoke": "playwright test -c tests/smoke/playwright.config.ts",
+    "test:smoke": "bun --bun playwright test -c tests/smoke/playwright.config.ts",
     "lint": "bun --bun oxlint . && ts-lint-effect && ts-lint-effect --project src/ui/tsconfig.app.json",
     "typecheck": "tsc --noEmit && tsc -b src/ui",
-    "plan": "alchemy plan",
-    "deploy": "bun run build && alchemy deploy --yes",
+    "plan": "bun run deploy plan",
+    "deploy": "bun src/deploy/deploy.ts",
     "lint:fix": "bun --bun oxlint . --fix",
     "format": "oxfmt ."
   },
   "dependencies": {
+    "@alchemy.run/cloudflare": "2.0.0-beta.85",
     "@ccal/shared": "workspace:*",
-    "@effect/platform-bun": "^4.0.0",
-    "@effect/platform-node": "^4.0.0",
-    "@effect/sql-d1": "^4.0.0",
-    "alchemy": "2.0.0-beta.80",
+    "@effect/platform-bun": "4.1.3",
+    "@effect/sql-d1": "4.1.3",
+    "alchemy": "2.0.0-beta.85",
     "cmail-client": "github:laroccacharly/cmail-client#v0.2.0",
-    "effect": "^4.0.0"
+    "effect": "4.1.3",
+    "effect-lib": "github:laroccacharly/effect-lib#v0.37.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260929.1",

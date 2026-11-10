@@ -1,5 +1,5 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
 import * as Alchemy from "alchemy"
-import * as Cloudflare from "alchemy/Cloudflare"
 import * as State from "alchemy/State"
 import * as Effect from "effect/Effect"
 
@@ -17,8 +17,8 @@ export default Alchemy.Stack(
     const worker = yield* Worker
     return { databaseName: database.databaseName, url: worker.url }
   }).pipe(
-    // This file only runs to plan and deploy, never inside the Worker, so it is where what `ccal config` and
-    // `ccal login` saved on this machine is read.
+    // This file only runs to plan and deploy, never inside the Worker, so it is where CCAL_URL becomes the Worker's
+    // hostname and what `ccal login` saved on this machine is read.
     Effect.provide(deploymentConfig)
   )
 )

@@ -1,7 +1,6 @@
 import { Config, ConfigProvider, Effect, Option } from "effect"
 
 import { readGoogleLogin } from "./google-login"
-import { readSettings } from "./settings"
 
 // Alchemy props may only fail with a ConfigError.
 const toConfigError = (error: { readonly message: string }) =>
@@ -9,22 +8,20 @@ const toConfigError = (error: { readonly message: string }) =>
     new ConfigProvider.SourceError({ message: error.message })
   )
 
-// The host of the saved URL, where visitors load the app. None when no URL is saved.
-const savedHostname = Effect.gen(function* savedHostname() {
-  const { url } = yield* readSettings
-  return Option.fromNullishOr(url).pipe(
-    Option.map((value) => new URL(value).hostname)
-  )
+// The host of CCAL_URL, which `bun run deploy` passes, where visitors load the app. None when it is unset.
+const urlHostname = Effect.gen(function* urlHostname() {
+  const url = yield* Config.option(Config.URL("CCAL_URL"))
+  return url.pipe(Option.map(({ hostname }) => hostname))
 })
 
 /**
- * What the deployed Worker takes from this machine: CCAL_HOSTNAME from `ccal config --set-url`, and
+ * What the deployed Worker takes from this machine: CCAL_HOSTNAME from CCAL_URL, and
  * GOOGLE_REFRESH_TOKEN from `ccal login`, which the Worker uses to create Meet invites. Only
  * alchemy.run.ts reads it, to plan and deploy; the environment still wins over it.
  */
 export const deploymentConfig = ConfigProvider.layerAdd(
   Effect.gen(function* deploymentConfig() {
-    const hostname = yield* savedHostname
+    const hostname = yield* urlHostname
     const login = yield* readGoogleLogin
     const config: Record<string, string> = {}
     if (Option.isSome(hostname)) {

@@ -4,13 +4,12 @@ import { Effect, Layer } from "effect"
 import { Command } from "effect/cli"
 import { FetchHttpClient } from "effect/http"
 
-import { configCommand } from "./commands/config"
 import { loginCommand } from "./commands/login"
 import { meetCommand } from "./commands/meet"
 
 const ccal = Command.make("ccal").pipe(
   Command.withDescription("Book meetings from the terminal"),
-  Command.withSubcommands([loginCommand, meetCommand, configCommand])
+  Command.withSubcommands([loginCommand, meetCommand])
 )
 
 BunRuntime.runMain(

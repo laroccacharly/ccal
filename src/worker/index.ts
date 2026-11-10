@@ -1,10 +1,11 @@
-import * as Cloudflare from "alchemy/Cloudflare"
-import * as SQL from "alchemy/SQL/D1"
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as SQL from "@alchemy.run/cloudflare/D1/SQL"
 import { Config, Effect, Layer, Match, Option } from "effect"
+import * as Deploy from "effect-lib/deploy"
 import { FetchHttpClient, HttpRouter, HttpServerResponse } from "effect/http"
 
 import { RETRY_CRON, retryMeetings } from "./meetings"
-import { RATE_LIMIT, RateLimiter, rateLimit } from "./rate-limit"
+import { HEALTH_PATH, RATE_LIMIT, RateLimiter, rateLimit } from "./rate-limit"
 import { routes } from "./routes"
 
 export const Database = Cloudflare.D1.Database("Database", {
@@ -28,7 +29,7 @@ const jsonError = (error: string, status: number) =>
 export default class Worker extends Cloudflare.Worker<Worker>()(
   "Worker",
   Effect.gen(function* workerProps() {
-    // The host of `ccal config --set-url` (provided by alchemy.run.ts), where visitors load the app and solve Turnstile.
+    // The host of CCAL_URL (provided by alchemy.run.ts), where visitors load the app and solve Turnstile.
     // Required, with no default: callers such as `bun dev` and Playwright pass "localhost" themselves.
     const hostname = yield* Config.String("CCAL_HOSTNAME")
     const domain: Pick<Cloudflare.WorkerProps, "domain"> = {}
@@ -43,11 +44,12 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
         date: "2026-09-01",
         flags: ["nodejs_compat" as const],
       },
-      // The UI, built by `bun run build`. The Worker only runs for /api/*; every other path is the single-page app.
+      // The UI, built by `bun run build`. The Worker only runs for /api/* and /health; every other path is the
+      // single-page app.
       assets: {
         directory: "src/ui/dist",
         notFoundHandling: "single-page-application" as const,
-        runWorkerFirst: ["/api/*"],
+        runWorkerFirst: ["/api/*", HEALTH_PATH],
       },
       // `alchemy dev` serves the Worker here. Strict, so callers such as Playwright can rely on the port.
       dev: {
@@ -78,14 +80,15 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
         ...(yield* optionalEnv("CMAIL_ORIGIN")),
         // Only set by the end-to-end tests, to fake the time through POST /api/test-clock. Never set it in production.
         ...(yield* optionalEnv("ENABLE_TEST_CLOCK")),
+        // The commit deployed, read again when the Worker runs; this checkout's under `alchemy dev`.
+        DEPLOY_VERSION: yield* Deploy.workerVersion(import.meta.dir),
       },
     }
   }),
   Effect.gen(function* worker() {
     const d1 = yield* Cloudflare.D1.QueryDatabase(yield* Database)
     const limiter = yield* RateLimiter
-    const versionMetadata = yield* Cloudflare.Workers.VersionMetadata()
-    const handleFetch = yield* HttpRouter.toHttpEffect(routes(versionMetadata))
+    const handleFetch = yield* HttpRouter.toHttpEffect(routes)
     const services = Layer.mergeAll(SQL.D1Layer(d1), FetchHttpClient.layer)
     yield* Cloudflare.Workers.cron(RETRY_CRON, (controller) =>
       retryMeetings(controller.scheduledTime).pipe(Effect.provide(services))
@@ -131,7 +134,6 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
     Effect.provide([
       Cloudflare.D1.QueryDatabaseBinding,
       Cloudflare.Workers.RateLimitBinding,
-      Cloudflare.Workers.VersionMetadataBinding,
       Cloudflare.Workers.CronEventSourceLive,
     ])
   )

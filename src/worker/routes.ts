@@ -1,9 +1,7 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
 import type { BookingRequest } from "@ccal/shared"
 import { TIME_ZONES, availabilityAt, findSlot } from "@ccal/shared/availability"
-import type { RuntimeContext } from "alchemy"
-import * as Cloudflare from "alchemy/Cloudflare"
 import { Clock, Config, Effect, Layer, Option, Redacted, Schema } from "effect"
-import type { HttpBody } from "effect/http"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 
 import { insertBookingRequest, listBookingRequests } from "./bookings"
@@ -13,7 +11,7 @@ import {
   unfinishedMeeting,
 } from "./meetings"
 import { notifyAdmin } from "./notify"
-import { VERSION_PATH } from "./rate-limit"
+import { HEALTH_PATH } from "./rate-limit"
 import {
   TestClockBody,
   currentTime,
@@ -125,28 +123,18 @@ const testClock = Effect.gen(function* testClock() {
   return yield* HttpServerResponse.json({ now: yield* writeTestClock(now) })
 })
 
-// The Worker version serving this request (id, tag and timestamp), e.g. to wait for a deploy to be live.
-const version: (
-  versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
-) => Effect.Effect<
-  HttpServerResponse.HttpServerResponse,
-  HttpBody.HttpBodyError,
-  RuntimeContext
-> = Effect.fn("version")(function* version(
-  versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
-) {
-  const { id, tag, timestamp } = yield* versionMetadata
-  return yield* HttpServerResponse.json({ id, tag, timestamp })
+// The commit deployed, which `bun run deploy` waits for this to answer.
+const health = Effect.gen(function* health() {
+  return yield* HttpServerResponse.json({
+    version: yield* Config.String("DEPLOY_VERSION"),
+  })
 })
 
-export const routes = (
-  versionMetadata: Cloudflare.Workers.VersionMetadataAccessor
-) =>
-  Layer.mergeAll(
-    HttpRouter.add("GET", "/api/availability", availability),
-    HttpRouter.add("POST", "/api/booking-requests", createBookingRequest),
-    HttpRouter.add("GET", "/api/booking-requests", bookingRequests),
-    HttpRouter.add("POST", "/api/meetings/retry", retryMeetingsNow),
-    HttpRouter.add("POST", "/api/test-clock", testClock),
-    HttpRouter.add("GET", VERSION_PATH, version(versionMetadata))
-  )
+export const routes = Layer.mergeAll(
+  HttpRouter.add("GET", "/api/availability", availability),
+  HttpRouter.add("POST", "/api/booking-requests", createBookingRequest),
+  HttpRouter.add("GET", "/api/booking-requests", bookingRequests),
+  HttpRouter.add("POST", "/api/meetings/retry", retryMeetingsNow),
+  HttpRouter.add("POST", "/api/test-clock", testClock),
+  HttpRouter.add("GET", HEALTH_PATH, health)
+)

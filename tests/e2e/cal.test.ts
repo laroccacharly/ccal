@@ -31,7 +31,8 @@
 // serves it when started with ENABLE_TEST_CLOCK, which playwright.config.ts sets.
 // Clicking "OK" POSTs the booking to /api/booking-requests on the same origin as the UI.
 // GET /api/booking-requests?email= reads back what was stored; it requires "Authorization: Bearer $CCAL_API_KEY".
-// GET /api/version returns the serving Worker version ({ id, tag, timestamp }), and is exempt from the rate limit.
+// GET /health returns { version }, the commit `bun run deploy` deployed (`git describe --always --dirty`), or the checked
+// out one under `alchemy dev`; it is exempt from the rate limit too.
 // GET /api/booking-requests also returns each booking's Google Meet (`meeting`), which the Worker creates in the background.
 // The Worker reaches "Google" at GOOGLE_API_ORIGIN, a stub (google-stub.ts) whose /stub/* routes list the events it
 // created and make it fail for an attendee. POST /api/meetings/retry (with the API key) retries unfinished meetings now.
@@ -39,6 +40,8 @@
 // emails it received and make it fail for emails mentioning a text.
 // The API allows each client 10 requests every 60 seconds, keyed on CF-Connecting-IP. Locally the Worker trusts that header,
 // so each test sends its own to act as a separate client.
+
+import { execFileSync } from "node:child_process"
 
 import type {
   Availability,
@@ -62,6 +65,10 @@ import type { StubEvent } from "./google-stub"
 import { workerLogLinesSince } from "./worker-log"
 
 const API_KEY = process.env.CCAL_API_KEY ?? ""
+
+// What the local Worker answers on /health: it runs from this checkout.
+const checkedOutCommit = () =>
+  execFileSync("git", ["describe", "--always", "--dirty"]).toString().trim()
 
 // IANA has no Montreal zone; it uses Toronto's
 const MONTREAL = "America/Toronto"
@@ -1354,7 +1361,7 @@ test.describe("Rate limiting", () => {
     expect(other.status()).toBe(200)
   })
 
-  test("a client that used up its budget can still call the version API", async ({
+  test("a client that used up its budget can still call the health check", async ({
     request,
   }, testInfo) => {
     const headers = { "CF-Connecting-IP": newClient(testInfo) }
@@ -1364,8 +1371,8 @@ test.describe("Rate limiting", () => {
     const limited = await request.get("/api/booking-requests", { headers })
     expect(limited.status()).toBe(429)
 
-    const version = await request.get("/api/version", { headers })
-    expect(version.status()).toBe(200)
+    const health = await request.get("/health", { headers })
+    expect(health.status()).toBe(200)
   })
 })
 
@@ -1500,15 +1507,15 @@ test.describe("Turnstile", () => {
 })
 
 test.describe("Version", () => {
-  test("the version API returns the serving Worker version, without an API key", async ({
+  test("the health check returns the checked out commit, without an API key", async ({
     request,
   }) => {
-    const response = await request.get("/api/version")
+    test.skip(
+      process.env.BASE_URL !== undefined,
+      "a deployed Worker answers the commit it was deployed from"
+    )
+    const response = await request.get("/health")
     expect(response.status()).toBe(200)
-    expect(await response.json()).toEqual({
-      id: expect.stringMatching(/.+/u),
-      tag: expect.any(String),
-      timestamp: expect.any(String),
-    })
+    expect(await response.json()).toEqual({ version: checkedOutCommit() })
   })
 })

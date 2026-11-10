@@ -1,9 +1,9 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
 import type { RuntimeContext } from "alchemy"
-import * as Cloudflare from "alchemy/Cloudflare"
 import { Effect, Option, Schema } from "effect"
 import { HttpServerRequest } from "effect/http"
 
-// Every request the Worker handles (all of /api/*) counts against its client's budget, except the version check.
+// Every request the Worker handles (/api/* and /health) counts against its client's budget, except the health check.
 // Cloudflare's rate-limit binding only counts over 10 or 60 seconds.
 export const RATE_LIMIT = {
   namespaceId: "26092901",
@@ -16,8 +16,8 @@ export const RateLimiter = Cloudflare.RateLimit("RATE_LIMITER", {
   simple: { limit: RATE_LIMIT.limit, period: RATE_LIMIT.period },
 })
 
-// Cheap (no database), and polled right after a deploy until the new version serves it, so it is never limited.
-export const VERSION_PATH = "/api/version"
+// Cheap (no database), and polled by `bun run deploy` until it answers the commit deployed, so it is never limited.
+export const HEALTH_PATH = "/health"
 
 export class RateLimited extends Schema.TaggedError<RateLimited>()(
   "RateLimited",
@@ -44,7 +44,7 @@ export const rateLimit: (
 ) {
   const request = yield* HttpServerRequest.HttpServerRequest
   const url = HttpServerRequest.toURL(request)
-  if (Option.isSome(url) && url.value.pathname === VERSION_PATH) {
+  if (Option.isSome(url) && url.value.pathname === HEALTH_PATH) {
     return
   }
   const { success } = yield* limiter

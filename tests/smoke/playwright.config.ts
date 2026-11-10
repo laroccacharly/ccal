@@ -1,25 +1,22 @@
 import { existsSync } from "node:fs"
 
-import { NodeServices } from "@effect/platform-node"
 import { defineConfig } from "@playwright/test"
-import { Effect } from "effect"
+import { Effect, Redacted } from "effect"
+import * as Credentials from "effect-lib/credentials"
 
-import { readSettings } from "../../src/local/settings"
+import { CcalUrl } from "../../src/local/credentials"
 
 // Smoke test of the deployed app (tests/smoke): it books for real, so run it only when asked.
-// It targets the URL saved with `ccal config --set-url`; set BASE_URL to test another deployment.
-const savedUrl = await Effect.runPromise(
-  readSettings.pipe(
-    Effect.map((settings) => settings.url),
-    Effect.provide(NodeServices.layer)
+// It targets CCAL_URL, the URL `bun run deploy` deploys to; set BASE_URL to test another deployment. `test:smoke`
+// runs Playwright under Bun, which loads effect-lib's TypeScript and has the OS keyring.
+const deployedUrl = async () =>
+  await Effect.runPromise(
+    CcalUrl.resolve.pipe(
+      Effect.map(Redacted.value),
+      Effect.provide(Credentials.layer(Credentials.defaultKeyring()))
+    )
   )
-)
-const baseURL = process.env.BASE_URL ?? savedUrl
-if (baseURL === undefined || baseURL === "") {
-  throw new Error(
-    "No deployment to test: run `ccal config --set-url` or set BASE_URL."
-  )
-}
+const baseURL = process.env.BASE_URL ?? (await deployedUrl())
 
 // Production runs the real Turnstile, which rejected Playwright's Chromium and Google Chrome but accepts Brave. The
 // test drives the Brave found at one of its usual install locations.
@@ -43,8 +40,8 @@ export default defineConfig({
   testMatch: "*.test.ts",
   // One real booking per run is enough.
   retries: 0,
-  // For each of the hooks and the test, separately: waiting for the deployed version and for the logs to become
-  // searchable each take up to a minute, and the test waits up to 30 seconds for the Meet.
+  // The test waits up to 30 seconds for the Meet, on top of loading the app and booking; it adds the time whoever runs
+  // it has to complete the Turnstile check.
   timeout: 90_000,
   use: { baseURL },
   projects: [

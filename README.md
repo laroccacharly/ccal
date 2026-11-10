@@ -39,7 +39,8 @@ For a backend of roughly 1,000 lines of TypeScript, we have
 ```sh
 bun dev             # run locally on http://localhost:1337
 bun test:e2e        # end-to-end tests
-bun run deploy      # Rebuilds the UI, must use instead of direct alchemy deploy
+bun run deploy login  # store the URL and secrets (.env.example) in the OS keyring
+bun run deploy      # rebuild the UI, deploy, then wait for /health to answer the commit
 bun run test:smoke  # smoke test against the deployed app
 ```
 
