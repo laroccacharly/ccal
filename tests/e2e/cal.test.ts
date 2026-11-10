@@ -1247,7 +1247,7 @@ test.describe("Admin notification", () => {
     "needs the cmail stub, which only runs with the local server"
   )
 
-  test("a booking emails ADMIN_EMAIL with the booked time and the booker's details", async ({
+  test("a booking emails ADMIN_EMAIL with the booked time, the booker's details and the Meet link", async ({
     request,
   }) => {
     const email = uniqueEmail()
@@ -1255,6 +1255,7 @@ test.describe("Admin notification", () => {
     await expect
       .poll(async () => await adminEmails(request, email))
       .toHaveLength(1)
+    const { meetLink } = await settledMeeting(request, email, "created")
 
     const [sent] = await adminEmails(request, email)
     expect(sent.to).toBe(ADMIN_EMAIL)
@@ -1271,6 +1272,7 @@ test.describe("Admin notification", () => {
       contact.name,
       email,
       contact.description,
+      `Google Meet: ${meetLink}`,
     ]) {
       expect(sent.body).toContain(detail)
     }
@@ -1283,6 +1285,25 @@ test.describe("Admin notification", () => {
       .poll(async () => await adminEmails(request, email))
       .toHaveLength(1)
     // Still one once the Worker has also finished the booking's meeting.
+    await settledMeeting(request, email, "created")
+    expect(await adminEmails(request, email)).toHaveLength(1)
+  })
+
+  test("when Google fails, the email still goes out, saying the Meet is not created yet, and only once", async ({
+    request,
+  }) => {
+    const email = uniqueEmail()
+    await googleOutage(request, email, true)
+    await book(request, email)
+    await expect
+      .poll(async () => await adminEmails(request, email))
+      .toHaveLength(1)
+    const [sent] = await adminEmails(request, email)
+    expect(sent.body).toContain("Google Meet: not created yet")
+    expect(sent.body).toContain("retried every 15 minutes")
+
+    await googleOutage(request, email, false)
+    await retryMeetings(request)
     await settledMeeting(request, email, "created")
     expect(await adminEmails(request, email)).toHaveLength(1)
   })

@@ -106,8 +106,10 @@
 
 # Admin notification
 
-- Assert that once a booking is accepted, an email is sent to ADMIN_EMAIL, titled "New booking request from <name>", with the booked date, time and time zone, and the booker's name, email and description
+- The email waits until the booking's Google Meet is created, so it can carry the Meet link
+- Assert that once a booking is accepted, an email is sent to ADMIN_EMAIL, titled "New booking request from <name>", with the booked date, time and time zone, the booker's name, email and description, and the Meet link
 - Assert exactly one email is sent per booking request
+- Assert that when Google fails to create the meeting, the email is still sent, saying the Google Meet is not created yet and will be retried, and no second email is sent once a retry creates it
 - Assert that when the email cannot be sent, the booking is still accepted and stored, and the failure is recorded in the Worker's logs as an error rather than swallowed
 
 # Rate limiting

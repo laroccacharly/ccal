@@ -1,7 +1,10 @@
 import type { BookingRequest } from "@ccal/shared"
 import { Cmail } from "cmail-client"
-import { Config, Effect, Schema } from "effect"
+import { Config, Effect, Option, Schema } from "effect"
 import type { HttpClient } from "effect/http"
+
+import type { MeetingOutcome } from "./meetings"
+import { RETRY_CRON_MINUTES } from "./meetings"
 
 export class AdminEmailNotSent extends Schema.TaggedError<AdminEmailNotSent>()(
   "AdminEmailNotSent",
@@ -21,11 +24,24 @@ const bookedAt = ({ startsAt, timeZone }: BookingRequest) =>
     timeZone,
   }).format(new Date(startsAt))} (${timeZone})`
 
+const meetingLine = (meeting: MeetingOutcome) => {
+  if (meeting.status === "failed") {
+    return `Google Meet: not created yet (${meeting.error}); it is retried every ${RETRY_CRON_MINUTES} minutes`
+  }
+  return Option.match(meeting.meetLink, {
+    onNone: () => "Google Meet: created; its link is on the calendar event",
+    onSome: (link) => `Google Meet: ${link}`,
+  })
+}
+
 /**
- * Emails ADMIN_EMAIL, through cmail, that a booking request came in. CMAIL_ORIGIN, when set, stands in for
+ * Emails ADMIN_EMAIL, through cmail, that a booking request came in, with its Google Meet link. CMAIL_ORIGIN, when set, stands in for
  * cmail's server: the end-to-end tests point the Worker at a fake.
  */
-export const notifyAdmin: (booking: BookingRequest) => Effect.Effect<
+export const notifyAdmin: (
+  booking: BookingRequest,
+  meeting: MeetingOutcome
+) => Effect.Effect<
   {
     readonly id: number
     readonly messageId: string
@@ -36,7 +52,7 @@ export const notifyAdmin: (booking: BookingRequest) => Effect.Effect<
   AdminEmailNotSent,
   HttpClient.HttpClient
 > = Effect.fn("notifyAdmin")(
-  function* notifyAdmin(booking: BookingRequest) {
+  function* notifyAdmin(booking: BookingRequest, meeting: MeetingOutcome) {
     const to = yield* Config.String("ADMIN_EMAIL")
     const cmail = yield* Cmail
     return yield* cmail.sendEmail({
@@ -46,6 +62,7 @@ export const notifyAdmin: (booking: BookingRequest) => Effect.Effect<
         `When: ${bookedAt(booking)}`,
         `Name: ${booking.name}`,
         `Email: ${booking.email}`,
+        meetingLine(meeting),
         "",
         booking.description,
       ].join("\n"),

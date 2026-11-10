@@ -5,6 +5,7 @@ import { Clock, Config, Effect, Layer, Option, Redacted, Schema } from "effect"
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 
 import { insertBookingRequest, listBookingRequests } from "./bookings"
+import type { MeetingOutcome, UnfinishedMeeting } from "./meetings"
 import {
   createBookingMeeting,
   retryMeetings,
@@ -52,9 +53,46 @@ const availability = Effect.gen(function* availability() {
   return yield* HttpServerResponse.json(availabilityAt(yield* currentTime))
 })
 
+// A concurrent retry already created it; the email then points to the calendar event for its link.
+const createdElsewhere: MeetingOutcome = {
+  status: "created",
+  meetLink: Option.none(),
+}
+
+// Cloudflare cancels background work 30 seconds after the response, so Google gets half of it and the email the rest.
+const MEETING_TIMEOUT_SECONDS = 15
+
+const meetingTimedOut: MeetingOutcome = {
+  status: "failed",
+  error: `Google did not answer within ${MEETING_TIMEOUT_SECONDS} seconds`,
+}
+
+const createBookingMeetingInTime = (meeting: UnfinishedMeeting) =>
+  createBookingMeeting(meeting).pipe(
+    Effect.timeoutOption(`${MEETING_TIMEOUT_SECONDS} seconds`),
+    Effect.map(Option.getOrElse(() => meetingTimedOut))
+  )
+
+// Creates a new booking's Google Meet. Never fails, so the admin is emailed whatever happens: a database error or a
+// stalled Google is emailed as a failed Meet, which the scheduled retry tries again.
+const bookingMeeting = (bookingRequestId: number) =>
+  unfinishedMeeting(bookingRequestId).pipe(
+    Effect.flatMap(
+      Option.match({
+        onNone: () => Effect.succeed(createdElsewhere),
+        onSome: createBookingMeetingInTime,
+      })
+    ),
+    Effect.tapCause(Effect.logError),
+    Effect.catchTag("SqlError", ({ message }): Effect.Effect<MeetingOutcome> =>
+      Effect.succeed({ status: "failed", error: message })
+    )
+  )
+
 // Only a slot from the current availability can be booked; it is stored in its normalized ISO form.
-// Its Google Meet is created, and the admin emailed, after the response is sent. If the Meet fails, the scheduled
-// retry tries again; the email is sent once, without retries, since a retried send may arrive twice.
+// Its Google Meet is created after the response is sent, then the admin is emailed with the Meet link. If the Meet
+// fails, the email says so and the scheduled retry tries again; the email is sent once, without retries, since a
+// retried send may arrive twice.
 const createBookingRequest = Effect.gen(function* createBookingRequest() {
   const body = yield* HttpServerRequest.schemaBodyJson(BookingRequestBody)
   const startsAt = findSlot(body.startsAt, yield* currentTime)
@@ -72,16 +110,12 @@ const createBookingRequest = Effect.gen(function* createBookingRequest() {
   // in production (locally workerd swallows it), so log it at error level first — visible in the dev log and matched
   // by Cloudflare's `$metadata.level = error` — then die, so production also records the invocation as an exception.
   yield* context.waitUntil(
-    notifyAdmin(booking).pipe(Effect.tapCause(Effect.logError), Effect.orDie)
-  )
-  const meeting = yield* unfinishedMeeting(booking.id)
-  if (Option.isSome(meeting)) {
-    yield* context.waitUntil(
-      createBookingMeeting(meeting.value).pipe(
-        Effect.catchCause(Effect.logError)
-      )
+    bookingMeeting(booking.id).pipe(
+      Effect.flatMap((meeting) => notifyAdmin(booking, meeting)),
+      Effect.tapCause(Effect.logError),
+      Effect.orDie
     )
-  }
+  )
   return yield* HttpServerResponse.json(booking, { status: 201 })
 })
 
@@ -107,8 +141,8 @@ const retryMeetingsNow = Effect.gen(function* retryMeetingsNow() {
   yield* requireApiKey
   const outcomes = yield* retryMeetings(yield* Clock.currentTimeMillis)
   return yield* HttpServerResponse.json({
-    created: outcomes.filter((outcome) => outcome === "created").length,
-    failed: outcomes.filter((outcome) => outcome === "failed").length,
+    created: outcomes.filter(({ status }) => status === "created").length,
+    failed: outcomes.filter(({ status }) => status === "failed").length,
   })
 })
 
